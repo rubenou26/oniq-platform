@@ -594,6 +594,70 @@ const DevisClient=({user})=>{
   );
 };
 
+// ── BatiManager Hub ────────────────────────────────────────────────────────
+const BatiManagerHub=({user,userSubs,onAuth,setView})=>{
+  const hasSub=userSubs&&userSubs.length>0;
+  const [fullscreen,setFullscreen]=useState(false);
+
+  if(!user) return (
+    <div style={{padding:"80px 36px",textAlign:"center"}}>
+      <div style={{maxWidth:400,margin:"0 auto"}}>
+        <div style={{fontSize:48,marginBottom:16}}>🏗️</div>
+        <div style={{fontFamily:SF,fontSize:24,fontWeight:700,color:C.ink,marginBottom:8}}>BatiManager</div>
+        <div style={{fontFamily:SS,fontSize:13,color:C.stone,marginBottom:24,lineHeight:1.7}}>Logiciel de gestion financière pour entreprises de construction. Connectez-vous pour y accéder.</div>
+        <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+          <button onClick={()=>onAuth("login")} style={{background:"transparent",border:`1px solid ${C.linen}`,borderRadius:4,padding:"10px 20px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.stone,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.1em"}}>Se connecter</button>
+          <button onClick={()=>onAuth("register")} style={{background:C.gold,border:"none",borderRadius:4,padding:"10px 20px",fontFamily:SS,fontSize:11,fontWeight:800,color:C.ink,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.1em"}}>Essayer gratuitement</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if(!hasSub) return (
+    <div style={{padding:"60px 36px",textAlign:"center"}}>
+      <div style={{maxWidth:480,margin:"0 auto"}}>
+        <div style={{fontSize:48,marginBottom:16}}>🏗️</div>
+        <div style={{fontFamily:SF,fontSize:24,fontWeight:700,color:C.ink,marginBottom:8}}>BatiManager</div>
+        <div style={{background:C.goldDim,border:`1px solid ${C.gold}44`,borderRadius:10,padding:"24px 28px",marginBottom:24}}>
+          <div style={{fontFamily:SF,fontSize:16,fontWeight:700,color:C.ink,marginBottom:6}}>Abonnement requis</div>
+          <div style={{fontFamily:SS,fontSize:13,color:C.stone,lineHeight:1.7,marginBottom:16}}>Abonnez-vous à BatiManager pour accéder au logiciel directement depuis votre espace ONIQ.</div>
+          <div style={{fontFamily:SF,fontSize:28,fontWeight:700,color:C.gold,marginBottom:16}}>169€<span style={{fontSize:13,fontWeight:400,color:C.stone}}>/mois</span></div>
+          <button onClick={()=>setView("c-market")} style={{background:C.gold,border:"none",borderRadius:6,padding:"11px 28px",fontFamily:SS,fontSize:11,fontWeight:800,color:C.ink,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.12em"}}>S'abonner maintenant →</button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,textAlign:"left"}}>
+          {[["📊","Suivi des chantiers","Gérez tous vos projets en temps réel"],["📋","Grand Livre","Comptabilité complète et détaillée"],["💰","Trésorerie","Flux financiers et prévisions"],["📄","Factures","Suivi fournisseurs et clients"],["📈","Balance budgétaire","Écarts prévisionnels vs réalisés"],["🏢","Fournisseurs","Gestion complète des partenaires"]].map(([ic,t,d])=>(
+            <div key={t} style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:8,padding:"12px 14px",display:"flex",gap:8}}>
+              <span style={{fontSize:18,flexShrink:0}}>{ic}</span>
+              <div><div style={{fontFamily:SS,fontWeight:700,fontSize:11,color:C.ink,marginBottom:2}}>{t}</div><div style={{fontFamily:SS,fontSize:10,color:C.stone,lineHeight:1.4}}>{d}</div></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"100vh",overflow:"hidden"}}>
+      <div style={{background:C.ink,padding:"10px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0,borderBottom:`1px solid ${C.gold}33`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:18}}>🏗️</span>
+          <div style={{fontFamily:SF,fontSize:14,fontWeight:700,color:C.ivory}}>BatiManager</div>
+          <div style={{fontFamily:SS,fontSize:9,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:C.gold,background:C.goldDim,border:`1px solid ${C.gold}44`,borderRadius:3,padding:"2px 7px"}}>Accès actif</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{fontFamily:SS,fontSize:11,color:"rgba(255,255,255,0.35)"}}>Connecté en tant que <strong style={{color:"rgba(255,255,255,0.6)"}}>{user.company||user.name}</strong></div>
+          <button onClick={()=>setFullscreen(p=>!p)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:4,padding:"5px 10px",fontFamily:SS,fontSize:10,fontWeight:600,color:"rgba(255,255,255,0.5)",cursor:"pointer",letterSpacing:"0.08em"}}>{fullscreen?"⊡ Réduire":"⊞ Plein écran"}</button>
+        </div>
+      </div>
+      <iframe
+        src="/batimanager.html"
+        style={{flex:1,border:"none",width:"100%",height:"100%"}}
+        title="BatiManager"
+      />
+    </div>
+  );
+};
+
 // ── Pages publiques ────────────────────────────────────────────────────────
 const Secteurs=({onSector,onAuth})=>(
   <div style={{padding:"28px 36px"}}>
@@ -787,9 +851,9 @@ const AdminDevis=()=>{
 
 // ── Nav ────────────────────────────────────────────────────────────────────
 const PUBLIC_NAV=[{id:"c-market",label:"Marketplace",g:"◈"},{id:"pub-secteurs",label:"Par secteur",g:"◉"},{id:"pub-apropos",label:"À propos",g:"◎"}];
-const CLIENT_EXTRA=[{id:"c-espace",label:"Mon espace",g:"◧"},{id:"c-parrainage",label:"Parrainage",g:"◆"},{id:"c-devis",label:"Devis sur mesure",g:"◫"}];
+const CLIENT_EXTRA=[{id:"c-espace",label:"Mon espace",g:"◧"},{id:"c-batimanager",label:"BatiManager",g:"🏗️",pro:true},{id:"c-parrainage",label:"Parrainage",g:"◆"},{id:"c-devis",label:"Devis sur mesure",g:"◫"}];
 const ADMIN_NAV=[{id:"a-dashboard",label:"Dashboard",g:"◈"},{id:"a-clients",label:"Clients",g:"◉"},{id:"a-devis",label:"Devis",g:"◎"},{id:"a-software",label:"Logiciels",g:"◧"}];
-const LOCKED=[{id:"c-espace",label:"Mon espace",g:"◧"},{id:"c-parrainage",label:"Parrainage",g:"◆"},{id:"c-devis",label:"Devis sur mesure",g:"◫"}];
+const LOCKED=[{id:"c-espace",label:"Mon espace",g:"◧"},{id:"c-batimanager",label:"BatiManager",g:"🏗️"},{id:"c-parrainage",label:"Parrainage",g:"◆"},{id:"c-devis",label:"Devis sur mesure",g:"◫"}];
 
 // ── App ────────────────────────────────────────────────────────────────────
 export default function App() {
@@ -801,6 +865,7 @@ export default function App() {
   const [authMode,setAuthMode]=useState("login");
   const [selSector,setSelSector]=useState("");
   const [loading,setLoading]=useState(true);
+  const [globalSubs,setGlobalSubs]=useState([]);
 
   // Check session on load
   useEffect(()=>{
@@ -808,6 +873,9 @@ export default function App() {
       if(session?.user){
         const {data:profile}=await supabase.from("profiles").select("*").eq("id",session.user.id).single();
         if(profile)setUser({...session.user,...profile});
+        // Load global subs
+        const {data:subs}=await supabase.from("subscriptions").select("software_id").eq("user_id",session.user.id).eq("status","active");
+        if(subs)setGlobalSubs(subs.map(s=>s.software_id));
       }
       setLoading(false);
     });
@@ -815,7 +883,9 @@ export default function App() {
       if(session?.user){
         const {data:profile}=await supabase.from("profiles").select("*").eq("id",session.user.id).single();
         if(profile)setUser({...session.user,...profile});
-      } else {setUser(null);}
+        const {data:subs}=await supabase.from("subscriptions").select("software_id").eq("user_id",session.user.id).eq("status","active");
+        if(subs)setGlobalSubs(subs.map(s=>s.software_id));
+      } else {setUser(null);setGlobalSubs([]);}
     });
     // Load software
     supabase.from("software").select("*").then(({data})=>{
@@ -864,7 +934,7 @@ export default function App() {
             <button key={item.id} onClick={()=>setView(item.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 13px",borderRadius:4,background:activeNav===item.id?`${C.gold}1A`:"transparent",border:`1px solid ${activeNav===item.id?C.gold+"44":"transparent"}`,color:activeNav===item.id?C.gold:"rgba(255,255,255,0.33)",cursor:"pointer",fontFamily:SS,fontSize:12,fontWeight:activeNav===item.id?600:400,textAlign:"left",transition:"all 0.15s",width:"100%"}}
               onMouseEnter={e=>{if(activeNav!==item.id){e.currentTarget.style.color="rgba(255,255,255,0.6)";e.currentTarget.style.background="rgba(255,255,255,0.04)";}}}
               onMouseLeave={e=>{if(activeNav!==item.id){e.currentTarget.style.color="rgba(255,255,255,0.33)";e.currentTarget.style.background="transparent";}}}
-            ><span style={{fontSize:11,opacity:0.5}}>{item.g}</span>{item.label}</button>
+            ><span style={{fontSize:11,opacity:item.g==="🏗️"?1:0.5}}>{item.g}</span>{item.label}{item.id==="c-batimanager"&&globalSubs.length>0&&<span style={{fontSize:8,background:C.green,color:"#fff",borderRadius:3,padding:"1px 5px",marginLeft:4,fontWeight:800}}>ACTIF</span>}</button>
           ))}
           {!user&&(
             <>
@@ -962,6 +1032,7 @@ export default function App() {
             )}
             {view==="pub-apropos"&&<Apropos onAuth={openAuth}/>}
             {view==="c-espace"&&user&&<MonEspace user={user} software={software}/>}
+            {view==="c-batimanager"&&<BatiManagerHub user={user} userSubs={globalSubs} onAuth={openAuth} setView={setView}/>}
             {view==="c-parrainage"&&user&&<Parrainage user={user}/>}
             {view==="c-devis"&&user&&<DevisClient user={user}/>}
             {(view==="c-espace"||view==="c-parrainage"||view==="c-devis")&&!user&&(
