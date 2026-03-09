@@ -596,8 +596,17 @@ const DevisClient=({user})=>{
 
 // ── BatiManager Hub ────────────────────────────────────────────────────────
 const BatiManagerHub=({user,userSubs,onAuth,setView})=>{
-  const hasSub=userSubs&&userSubs.length>0;
+  const [hasSub,setHasSub]=useState(false);
+  const [checking,setChecking]=useState(true);
   const [fullscreen,setFullscreen]=useState(false);
+
+  useEffect(()=>{
+    if(!user?.id){setChecking(false);return;}
+    supabase.from("subscriptions").select("id").eq("user_id",user.id).eq("status","active")
+      .then(({data})=>{setHasSub(data&&data.length>0);setChecking(false);});
+  },[user?.id]);
+
+  if(checking) return <div style={{padding:"80px",textAlign:"center",fontFamily:SS,color:C.stone}}>Vérification…</div>;
 
   if(!user) return (
     <div style={{padding:"80px 36px",textAlign:"center"}}>
