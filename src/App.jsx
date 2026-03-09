@@ -646,7 +646,7 @@ const BatiManagerHub=({user,userSubs,onAuth,setView})=>{
   );
 
   return (
-    <div style={{display:"flex",flexDirection:"column",height:"100vh",overflow:"hidden"}}>
+    <div style={{display:"flex",flexDirection:"column",position:"fixed",top:0,left:216,right:0,bottom:0,zIndex:5}}>
       <div style={{background:C.ink,padding:"10px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0,borderBottom:`1px solid ${C.gold}33`}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:18}}>🏗️</span>
