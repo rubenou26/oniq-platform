@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "./supabase.js";
 
 const C = {
   ink:"#0A0A08",deep:"#060504",paper:"#F5F2EC",dim:"#EFEBE3",linen:"#E8E2D8",
@@ -11,66 +12,34 @@ const C = {
 const SF="'Playfair Display',Georgia,serif";
 const SS="'DM Sans','Helvetica Neue',sans-serif";
 
-const SW_DB=[
-  {id:1,name:"POS Manager",    price:49,cat:"Commerce",   sector:"Boulangerie,Épicerie,Boutique",  icon:"🏪",desc:"Caisse & point de vente complet.",        features:["Caisse tactile","Multi-postes","Rapports","Export comptable"],popular:true, rating:4.8,reviews:127},
-  {id:2,name:"Stock Pro",      price:29,cat:"Gestion",    sector:"Boulangerie,Pharmacie,Commerce", icon:"📦",desc:"Stocks, alertes de seuil, inventaires.",  features:["Stock temps réel","Alertes","Codes-barres","Fournisseurs"],   popular:false,rating:4.6,reviews:89},
-  {id:3,name:"Appointments AI",price:39,cat:"Services",   sector:"Coiffure,Beauté,Médecine",       icon:"📅",desc:"Rendez-vous intelligents, rappels SMS.",  features:["Résa en ligne","Rappels SMS","Agenda sync","Fidélité"],       popular:true, rating:4.9,reviews:203},
-  {id:4,name:"CaisseX",        price:35,cat:"Commerce",   sector:"Restauration,Commerce,Marché",   icon:"💳",desc:"Caisse simplifiée pour petits commerces.",features:["Interface simple","Reçus numériques","Sans contact","Stats"],  popular:false,rating:4.5,reviews:64},
-  {id:5,name:"RepairDesk",     price:45,cat:"Artisanat",  sector:"Garage,Réparation,Électronique", icon:"🔧",desc:"Gestion atelier & réparations client.",   features:["Fiches réparation","Suivi pièces","SMS client","Devis"],      popular:false,rating:4.7,reviews:41},
-  {id:6,name:"DriveManager",   price:39,cat:"Auto-école", sector:"Auto-école,Formation",           icon:"🚗",desc:"Élèves, moniteurs, planning auto.",       features:["Planning","Suivi élèves","Examens","Facturation"],            popular:false,rating:4.6,reviews:33},
-  {id:7,name:"RestoFlow",      price:44,cat:"Restauration",sector:"Restaurant,Café,Traiteur",      icon:"🍽️",desc:"Salle, commandes cuisine, réservations.",features:["Plan de salle","Commandes","Cuisine","Réservations"],          popular:true, rating:4.7,reviews:88},
-  {id:8,name:"BeautyBook",     price:32,cat:"Beauté",     sector:"Coiffure,Institut,Spa",          icon:"✂️",desc:"Agenda beauté, fidélité, vente.",        features:["Agenda","Fidélité","Vente produits","Insta sync"],            popular:false,rating:4.8,reviews:156},
-];
-
 const SECTORS=["Boulangerie","Coiffure","Garage","Restaurant","Auto-école","Pharmacie","Commerce","Beauté","Artisanat","Médecine"];
-
-const USERS_DB=[
-  {id:1,role:"admin", name:"Admin ONIQ",         company:"ONIQ",              email:"admin@oniq.fr",         password:"admin", avatar:"OA",subs:[],   trials:{},since:"Jan 2020",status:"active", sector:"",           referralCode:"ADMIN1",referrals:0,referralCredit:0},
-  {id:2,role:"client",name:"Jean Martin",         company:"Boulangerie Martin",email:"martin@boulangerie.fr",password:"client",avatar:"BM",subs:[1,2], trials:{},since:"Jan 2024",status:"active", sector:"Boulangerie",referralCode:"BM2024",referrals:2,referralCredit:2},
-  {id:3,role:"client",name:"Coiffure Éléonore",  company:"Coiffure Éléonore", email:"eleonore@coiff.fr",    password:"client",avatar:"CE",subs:[3,4,2],trials:{},since:"Jun 2023",status:"active", sector:"Coiffure",   referralCode:"CE2023",referrals:1,referralCredit:0},
-  {id:4,role:"client",name:"Garage Dupont",       company:"Garage Dupont",     email:"dupont@garage.fr",     password:"client",avatar:"GD",subs:[5],   trials:{},since:"Mar 2024",status:"overdue",sector:"Garage",     referralCode:"GD2024",referrals:0,referralCredit:0},
-  {id:5,role:"client",name:"Restaurant Le Soleil",company:"Restaurant Soleil", email:"soleil@resto.fr",      password:"client",avatar:"RS",subs:[7],   trials:{},since:"Nov 2024",status:"trial",  sector:"Restaurant", referralCode:"RS2024",referrals:0,referralCredit:1},
-];
-
-const DEVIS_DB=[
-  {id:1,client:"Menuiserie Blanc", email:"blanc@menuiserie.fr",desc:"Logiciel gestion chantiers et devis bâtiment.",   date:"28 Nov 2024",status:"pending",amount:null},
-  {id:2,client:"Salon Beauté Rose",email:"rose@salon.fr",      desc:"App fidélité clients avec points et récompenses.",date:"02 Déc 2024",status:"quoted", amount:38},
-  {id:3,client:"Pressing Dubois", email:"dubois@pressing.fr",  desc:"Suivi articles en lavage, SMS automatiques.",     date:"04 Déc 2024",status:"pending",amount:null},
-];
-
 const MRR_HIST=[310,380,420,465,510,554];
 const MRR_MONTHS=["Juil","Août","Sep","Oct","Nov","Déc"];
 
-const getMrr=(subs)=>subs.reduce((s,id)=>{const sw=SW_DB.find(x=>x.id===id);return s+(sw?.price||0);},0);
-const genCode=()=>Math.random().toString(36).slice(2,8).toUpperCase();
-const trialDaysLeft=(ts)=>ts?Math.max(0,Math.ceil((new Date(ts+7*86400000)-Date.now())/86400000)):0;
+const getMrr=(subs,software)=>subs.reduce((s,id)=>{const sw=software.find(x=>x.id===id);return s+(sw?.price||0);},0);
+const trialDaysLeft=(ts)=>ts?Math.max(0,Math.ceil((new Date(ts).getTime()+7*86400000-Date.now())/86400000)):0;
 const isTrialActive=(ts)=>ts&&trialDaysLeft(ts)>0;
 
 // ── Atoms ──────────────────────────────────────────────────────────────────
 const HR=({s})=><div style={{height:1,background:`linear-gradient(90deg,transparent,${C.linen},transparent)`,...s}}/>;
-
 const Stars=({r,sm})=>(
   <span style={{display:"inline-flex",gap:1,alignItems:"center"}}>
     {[1,2,3,4,5].map(i=><span key={i} style={{color:i<=Math.round(r)?C.gold:C.linen,fontSize:sm?11:13}}>★</span>)}
     <span style={{fontFamily:SS,fontSize:sm?10:12,color:C.stone,marginLeft:3}}>{r}</span>
   </span>
 );
-
 const Badge=({status})=>{
-  const m={active:{l:"Actif",bg:C.greenDim,c:C.green},trial:{l:"Essai",bg:C.goldDim,c:C.gold},overdue:{l:"Retard",bg:C.redDim,c:C.red},paid:{l:"Payé",bg:C.greenDim,c:C.green},pending:{l:"En attente",bg:C.amberDim,c:C.amber},quoted:{l:"Devis envoyé",bg:C.goldDim,c:C.gold}};
+  const m={active:{l:"Actif",bg:C.greenDim,c:C.green},trial:{l:"Essai",bg:C.goldDim,c:C.gold},overdue:{l:"Retard",bg:C.redDim,c:C.red},paid:{l:"Payé",bg:C.greenDim,c:C.green},pending:{l:"En attente",bg:C.amberDim,c:C.amber},quoted:{l:"Devis envoyé",bg:C.goldDim,c:C.gold},cancelled:{l:"Annulé",bg:C.redDim,c:C.red}};
   const s=m[status]||m.active;
   return <span style={{background:s.bg,color:s.c,border:`1px solid ${s.c}44`,padding:"3px 10px",borderRadius:3,fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",fontFamily:SS,whiteSpace:"nowrap"}}>{s.l}</span>;
 };
-
 const Mono=({i,size=36})=>(
   <div style={{width:size,height:size,borderRadius:4,background:C.ink,border:`1px solid ${C.gold}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.3,fontWeight:700,color:C.gold,fontFamily:SF,flexShrink:0}}>{i}</div>
 );
-
-const Btn=({children,v="primary",onClick,style:{},disabled})=>{
+const Btn=({children,v="primary",onClick,style:st={},disabled})=>{
   const vs={primary:{background:C.ink,color:C.ivory,border:"none"},ghost:{background:"transparent",color:C.stone,border:`1px solid ${C.linen}`},gold:{background:C.gold,color:C.ink,border:"none"},red:{background:C.redDim,color:C.red,border:`1px solid ${C.red}44`}};
-  return <button onClick={disabled?undefined:onClick} style={{borderRadius:4,padding:"9px 20px",fontFamily:SS,fontSize:11,fontWeight:700,cursor:disabled?"not-allowed":"pointer",letterSpacing:"0.1em",textTransform:"uppercase",transition:"all 0.2s",opacity:disabled?0.5:1,...vs[v],...style}}>{children}</button>;
+  return <button onClick={disabled?undefined:onClick} style={{borderRadius:4,padding:"9px 20px",fontFamily:SS,fontSize:11,fontWeight:700,cursor:disabled?"not-allowed":"pointer",letterSpacing:"0.1em",textTransform:"uppercase",transition:"all 0.2s",opacity:disabled?0.5:1,...vs[v],...st}}>{children}</button>;
 };
-
 const KPI=({label,value,sub,accent,trend})=>(
   <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,padding:"20px 24px"}}>
     <div style={{fontFamily:SS,fontSize:9,fontWeight:700,letterSpacing:"0.18em",textTransform:"uppercase",color:C.stone,marginBottom:8}}>{label}</div>
@@ -78,7 +47,6 @@ const KPI=({label,value,sub,accent,trend})=>(
     {sub&&<div style={{fontFamily:SS,fontSize:11,color:accent?C.gold:trend?C.green:C.stone,marginTop:6}}>{trend&&<span style={{color:C.green}}>↑ </span>}{sub}</div>}
   </div>
 );
-
 const PH=({section,title,action})=>(
   <div style={{borderBottom:`1px solid ${C.linen}`,paddingBottom:18,marginBottom:26,display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
     <div>
@@ -88,26 +56,25 @@ const PH=({section,title,action})=>(
     {action}
   </div>
 );
-
 const FL=({label})=><label style={{fontFamily:SS,fontSize:9,fontWeight:700,letterSpacing:"0.16em",textTransform:"uppercase",color:C.stone,display:"block",marginBottom:7}}>{label}</label>;
-
 const TI=({label,value,onChange,type="text",placeholder="",mb=16})=>(
   <div style={{marginBottom:mb}}>
     {label&&<label style={{fontFamily:SS,fontSize:9,fontWeight:700,letterSpacing:"0.16em",textTransform:"uppercase",color:C.stone,display:"block",marginBottom:7}}>{label}</label>}
     <input type={type} value={value} onChange={onChange} placeholder={placeholder} style={{width:"100%",background:C.paper,border:`1px solid ${C.linen}`,borderRadius:4,padding:"11px 14px",fontFamily:SS,fontSize:13,color:C.ink,outline:"none",boxSizing:"border-box"}}/>
   </div>
 );
-
 const Overlay=({title,subtitle,onClose,children,wide})=>(
   <div style={{position:"fixed",inset:0,background:"rgba(5,5,4,0.7)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{background:C.ivory,border:`1px solid ${C.linen}`,borderRadius:10,padding:40,width:wide?600:420,maxHeight:"90vh",overflowY:"auto"}}>
-      <div style={{fontFamily:SF,fontSize:20,fontWeight:700,color:C.ink,marginBottom:subtitle?6:22}}>{title}</div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:subtitle?6:22}}>
+        <div style={{fontFamily:SF,fontSize:20,fontWeight:700,color:C.ink}}>{title}</div>
+        <button onClick={onClose} style={{background:"none",border:"none",color:C.stone,cursor:"pointer",fontSize:18}}>✕</button>
+      </div>
       {subtitle&&<div style={{fontFamily:SS,fontSize:12,color:C.stone,marginBottom:22}}>{subtitle}</div>}
       {children}
     </div>
   </div>
 );
-
 const Toast=({msg,onClose})=>(
   <div style={{position:"fixed",bottom:26,right:26,background:C.ink,border:`1px solid ${C.gold}44`,borderRadius:8,padding:"16px 22px",zIndex:500,display:"flex",alignItems:"center",gap:12}}>
     <span style={{color:C.gold}}>✦</span>
@@ -115,7 +82,6 @@ const Toast=({msg,onClose})=>(
     <button onClick={onClose} style={{background:"none",border:"none",color:C.stone,cursor:"pointer",marginLeft:8}}>✕</button>
   </div>
 );
-
 const Sparkline=({data})=>{
   const max=Math.max(...data),min=Math.min(...data),w=300,h=60,p=6;
   const x=(i)=>p+(i/(data.length-1))*(w-p*2);
@@ -137,7 +103,7 @@ const Sparkline=({data})=>{
   );
 };
 
-// ── Auth ───────────────────────────────────────────────────────────────────
+// ── Auth Modal ─────────────────────────────────────────────────────────────
 const AuthModal=({onLogin,initMode,onClose})=>{
   const [mode,setMode]=useState(initMode||"login");
   const [step,setStep]=useState(1);
@@ -145,19 +111,39 @@ const AuthModal=({onLogin,initMode,onClose})=>{
   const [pass,setPass]=useState("");
   const [reg,setReg]=useState({company:"",name:"",email:"",sector:"",pass:"",pass2:""});
   const [err,setErr]=useState("");
+  const [loading,setLoading]=useState(false);
   const is={width:"100%",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:4,padding:"12px 14px",fontFamily:SS,fontSize:13,color:C.ivory,outline:"none",boxSizing:"border-box"};
   const ls={fontFamily:SS,fontSize:9,fontWeight:700,letterSpacing:"0.16em",textTransform:"uppercase",color:"rgba(255,255,255,0.4)",display:"block",marginBottom:7};
-  const doLogin=()=>{
-    const u=USERS_DB.find(u=>u.email===email&&u.password===pass);
-    if(!u){setErr("Email ou mot de passe incorrect.");return;}
-    onLogin(u,false);
+
+  const doLogin=async()=>{
+    setLoading(true);setErr("");
+    const {data,error}=await supabase.auth.signInWithPassword({email,password:pass});
+    if(error){setErr("Email ou mot de passe incorrect.");setLoading(false);return;}
+    const {data:profile}=await supabase.from("profiles").select("*").eq("id",data.user.id).single();
+    onLogin({...data.user,...profile});
+    setLoading(false);
   };
-  const doRegister=()=>{
+
+  const doRegister=async()=>{
     if(!reg.company||!reg.email||!reg.pass){setErr("Remplissez tous les champs.");return;}
     if(reg.pass!==reg.pass2){setErr("Mots de passe différents.");return;}
-    const u={id:Date.now(),role:"client",name:reg.name||reg.company,company:reg.company,email:reg.email,password:reg.pass,avatar:reg.company.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase(),subs:[],trials:{},since:new Date().toLocaleDateString("fr-FR",{month:"short",year:"numeric"}),status:"trial",sector:reg.sector,referralCode:genCode(),referrals:0,referralCredit:0};
-    onLogin(u,true);
+    setLoading(true);setErr("");
+    const {data,error}=await supabase.auth.signUp({
+      email:reg.email,password:reg.pass,
+      options:{data:{name:reg.name||reg.company}}
+    });
+    if(error){setErr(error.message);setLoading(false);return;}
+    // Update profile with company info
+    await supabase.from("profiles").update({
+      company:reg.company,name:reg.name||reg.company,sector:reg.sector,
+      avatar:reg.company.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase(),
+      status:"trial"
+    }).eq("id",data.user.id);
+    const {data:profile}=await supabase.from("profiles").select("*").eq("id",data.user.id).single();
+    onLogin({...data.user,...profile},true);
+    setLoading(false);
   };
+
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(5,5,4,0.88)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center"}}>
       <div style={{background:C.deep,border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"44px 48px",width:380,position:"relative"}}>
@@ -174,8 +160,7 @@ const AuthModal=({onLogin,initMode,onClose})=>{
             <div style={{marginBottom:12}}><label style={ls}>Email</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doLogin()} placeholder="vous@entreprise.fr" style={is}/></div>
             <div style={{marginBottom:18}}><label style={ls}>Mot de passe</label><input type="password" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doLogin()} placeholder="••••••••" style={is}/></div>
             {err&&<div style={{fontFamily:SS,fontSize:12,color:"#e87777",marginBottom:12,background:"rgba(168,60,60,0.15)",padding:"10px 14px",borderRadius:4}}>{err}</div>}
-            <button onClick={doLogin} style={{width:"100%",background:C.gold,border:"none",borderRadius:4,padding:13,fontFamily:SS,fontSize:11,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:C.ink,cursor:"pointer"}}>Se connecter</button>
-            <div style={{fontFamily:SS,fontSize:10,color:"rgba(255,255,255,0.18)",marginTop:16,lineHeight:1.8}}>Démo : admin@oniq.fr / admin<br/>Client : martin@boulangerie.fr / client</div>
+            <button onClick={doLogin} disabled={loading} style={{width:"100%",background:C.gold,border:"none",borderRadius:4,padding:13,fontFamily:SS,fontSize:11,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:C.ink,cursor:"pointer",opacity:loading?0.7:1}}>{loading?"Connexion…":"Se connecter"}</button>
           </>
         )}
         {mode==="register"&&step===1&&(
@@ -202,67 +187,10 @@ const AuthModal=({onLogin,initMode,onClose})=>{
             {err&&<div style={{fontFamily:SS,fontSize:12,color:"#e87777",marginBottom:12,background:"rgba(168,60,60,0.15)",padding:"10px 14px",borderRadius:4}}>{err}</div>}
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>setStep(1)} style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:4,padding:13,fontFamily:SS,fontSize:11,color:"rgba(255,255,255,0.45)",cursor:"pointer",fontWeight:600}}>← Retour</button>
-              <button onClick={doRegister} style={{flex:2,background:C.gold,border:"none",borderRadius:4,padding:13,fontFamily:SS,fontSize:11,fontWeight:700,color:C.ink,cursor:"pointer",letterSpacing:"0.12em",textTransform:"uppercase"}}>Créer mon compte</button>
+              <button onClick={doRegister} disabled={loading} style={{flex:2,background:C.gold,border:"none",borderRadius:4,padding:13,fontFamily:SS,fontSize:11,fontWeight:700,color:C.ink,cursor:"pointer",letterSpacing:"0.12em",textTransform:"uppercase",opacity:loading?0.7:1}}>{loading?"Création…":"Créer mon compte"}</button>
             </div>
           </>
         )}
-      </div>
-    </div>
-  );
-};
-
-// ── Onboarding ─────────────────────────────────────────────────────────────
-const Onboarding=({user,onDone})=>{
-  const [step,setStep]=useState(0);
-  const [picks,setPicks]=useState([]);
-  const relevant=SW_DB.filter(sw=>user.sector&&sw.sector.includes(user.sector));
-  const shown=relevant.length>0?relevant:SW_DB.slice(0,4);
-  return (
-    <div style={{position:"fixed",inset:0,background:"rgba(5,5,4,0.82)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <div style={{background:C.ivory,border:`1px solid ${C.linen}`,borderRadius:12,padding:"44px 48px",width:520,maxHeight:"90vh",overflowY:"auto"}}>
-        <div style={{display:"flex",gap:8,marginBottom:28}}>{[0,1,2].map(i=><div key={i} style={{flex:1,height:3,borderRadius:2,background:i<=step?C.gold:C.linen,transition:"background 0.3s"}}/>)}</div>
-        <div style={{fontFamily:SS,fontSize:9,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase",color:C.gold,marginBottom:6}}>Étape {step+1} / 3</div>
-        {step===0&&(
-          <>
-            <div style={{fontFamily:SF,fontSize:22,fontWeight:700,color:C.ink,marginBottom:6}}>Bienvenue sur ONIQ !</div>
-            <div style={{fontFamily:SS,fontSize:13,color:C.stone,marginBottom:22,lineHeight:1.6}}>Votre compte <strong>{user.company}</strong> est créé. Configurons votre espace.</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:24}}>
-              {[["🎯","Marketplace","Explorer +8 logiciels métier"],["🆓","7 jours gratuits","Essayez sans carte bancaire"],["✦","Sur mesure","Devis pour vos besoins"],["💬","Support inclus","Aide disponible toujours"]].map(([ic,t,d])=>(
-                <div key={t} style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:8,padding:"14px 12px",display:"flex",gap:10}}>
-                  <span style={{fontSize:16}}>{ic}</span>
-                  <div><div style={{fontFamily:SS,fontWeight:700,fontSize:12,color:C.ink}}>{t}</div><div style={{fontFamily:SS,fontSize:11,color:C.stone}}>{d}</div></div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-        {step===1&&(
-          <>
-            <div style={{fontFamily:SF,fontSize:20,fontWeight:700,color:C.ink,marginBottom:5}}>Choisissez vos logiciels</div>
-            <div style={{fontFamily:SS,fontSize:13,color:C.stone,marginBottom:18,lineHeight:1.6}}>Sélectionnez les logiciels qui vous intéressent — 7 jours gratuits sur chacun.</div>
-            {shown.map(sw=>{const sel=picks.includes(sw.id);return(
-              <div key={sw.id} onClick={()=>setPicks(p=>sel?p.filter(x=>x!==sw.id):[...p,sw.id])} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:sel?C.goldDim:C.paper,border:`1px solid ${sel?C.gold+"66":C.linen}`,borderRadius:8,marginBottom:8,cursor:"pointer"}}>
-                <span style={{fontSize:20}}>{sw.icon}</span>
-                <div style={{flex:1}}><div style={{fontFamily:SS,fontWeight:700,fontSize:13,color:C.ink}}>{sw.name}</div><div style={{fontFamily:SS,fontSize:11,color:C.stone}}>{sw.desc}</div></div>
-                <div style={{textAlign:"right"}}><div style={{fontFamily:SF,fontWeight:700,fontSize:13,color:C.gold}}>{sw.price}€/mois</div></div>
-                <div style={{width:18,height:18,borderRadius:3,background:sel?C.gold:C.linen,display:"flex",alignItems:"center",justifyContent:"center",color:sel?C.ink:"transparent",fontWeight:800,fontSize:11,flexShrink:0}}>{sel?"✓":""}</div>
-              </div>
-            );})}
-          </>
-        )}
-        {step===2&&(
-          <div style={{textAlign:"center",padding:"24px 0"}}>
-            <div style={{fontSize:48,marginBottom:14}}>🎉</div>
-            <div style={{fontFamily:SF,fontSize:20,fontWeight:700,color:C.ink,marginBottom:6}}>{picks.length>0?`${picks.length} essai${picks.length>1?"s":""} activé${picks.length>1?"s":""}  !`:"Votre espace est prêt !"}</div>
-            <div style={{fontFamily:SS,fontSize:13,color:C.stone}}>Explorez la marketplace et découvrez tous nos logiciels.</div>
-          </div>
-        )}
-        <div style={{display:"flex",gap:10,marginTop:8}}>
-          {step>0&&<button onClick={()=>setStep(p=>p-1)} style={{flex:1,background:"transparent",border:`1px solid ${C.linen}`,borderRadius:4,padding:"10px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.stone,cursor:"pointer",letterSpacing:"0.1em",textTransform:"uppercase"}}>Retour</button>}
-          <button onClick={()=>{if(step<2)setStep(p=>p+1);else onDone(picks);}} style={{flex:2,background:C.gold,border:"none",borderRadius:4,padding:"10px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.ink,cursor:"pointer",letterSpacing:"0.1em",textTransform:"uppercase"}}>
-            {step===0?"Commencer →":step===1?(picks.length>0?`Activer ${picks.length} essai${picks.length>1?"s":""}  →`:"Passer →"):"Accéder à mon espace →"}
-          </button>
-        </div>
       </div>
     </div>
   );
@@ -282,6 +210,21 @@ const Marketplace=({user,setUser,software,setView,onAuth})=>{
   const [aiLoad,setAiLoad]=useState(false);
   const [aiRes,setAiRes]=useState(null);
   const [showAi,setShowAi]=useState(false);
+  const [userSubs,setUserSubs]=useState([]);
+  const [userTrials,setUserTrials]=useState({});
+
+  useEffect(()=>{
+    if(user?.id){
+      supabase.from("subscriptions").select("software_id,status,trial_started_at").eq("user_id",user.id).then(({data})=>{
+        if(data){
+          setUserSubs(data.filter(s=>s.status==="active").map(s=>s.software_id));
+          const trials={};
+          data.filter(s=>s.status==="trial").forEach(s=>{trials[s.software_id]=s.trial_started_at;});
+          setUserTrials(trials);
+        }
+      });
+    }
+  },[user?.id]);
 
   const CATS=["Tous",...Array.from(new Set(software.map(s=>s.cat)))];
   let list=software.filter(s=>(cat==="Tous"||s.cat===cat)&&s.name.toLowerCase().includes(search.toLowerCase()));
@@ -290,80 +233,79 @@ const Marketplace=({user,setUser,software,setView,onAuth})=>{
   if(sort==="price_asc")list=[...list].sort((a,b)=>a.price-b.price);
   if(sort==="price_desc")list=[...list].sort((a,b)=>b.price-a.price);
 
-  const isSub=id=>user?.subs?.includes(id);
-  const isTrial=id=>user&&isTrialActive(user.trials?.[id]);
+  const isSub=id=>userSubs.includes(id);
+  const isTrial=id=>isTrialActive(userTrials[id]);
   const isCart=id=>cart.includes(id);
 
-  const startTrial=id=>{
+  const startTrial=async(id)=>{
     if(!user){onAuth("register");return;}
-    setUser(u=>({...u,trials:{...u.trials,[id]:Date.now()}}));
+    await supabase.from("subscriptions").insert({user_id:user.id,software_id:id,status:"trial",trial_started_at:new Date().toISOString()});
+    setUserTrials(p=>({...p,[id]:new Date().toISOString()}));
     const sw=software.find(s=>s.id===id);
     setToast(`✓ Essai 7 jours activé pour ${sw?.name} !`);
     setTimeout(()=>setToast(null),4000);
     setDetail(null);
   };
+
   const toggleCart=id=>{if(!user){onAuth("register");return;}setCart(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);};
   const cartItems=software.filter(s=>cart.includes(s.id));
   const cartTotal=cartItems.reduce((s,x)=>s+x.price,0);
-  const pay=()=>{setUser(u=>({...u,subs:[...new Set([...u.subs,...cart])]}));setCart([]);setShowPay(false);setToast("🎉 Abonnements activés !");setTimeout(()=>setToast(null),4000);};
+
+  const pay=async()=>{
+    for(const id of cart){
+      await supabase.from("subscriptions").upsert({user_id:user.id,software_id:id,status:"active"},{onConflict:"user_id,software_id"});
+    }
+    setUserSubs(p=>[...new Set([...p,...cart])]);
+    setCart([]);setShowPay(false);
+    setToast("🎉 Abonnements activés !");setTimeout(()=>setToast(null),4000);
+  };
 
   const runAi=async()=>{
     if(!user){onAuth("register");return;}
     if(!aiQ.trim())return;
     setAiLoad(true);setAiRes(null);
     try{
-      const catalog=software.map(s=>`id:${s.id} ${s.name}(${s.price}€): ${s.desc}`).join("\n");
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:400,messages:[{role:"user",content:`Catalogue:\n${catalog}\n\nBesoin: "${aiQ}"\n\nRéponds UNIQUEMENT en JSON sans markdown:\n{"message":"réponse courte","matches":[{"id":1,"reason":"raison"}],"noMatch":false}`}]})});
+      const catalog=software.map(s=>`id:${s.id} ${s.name}(${s.price}€): ${s.description}`).join("\n");
+      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:400,messages:[{role:"user",content:`Catalogue:\n${catalog}\n\nBesoin: "${aiQ}"\n\nRéponds UNIQUEMENT en JSON:\n{"message":"réponse courte","matches":[{"id":1,"reason":"raison"}],"noMatch":false}`}]})});
       const data=await res.json();
       const txt=data.content?.map(b=>b.text||"").join("")||"{}";
       setAiRes(JSON.parse(txt.replace(/```json|```/g,"").trim()));
-    }catch(e){setAiRes({message:"Une erreur est survenue, réessayez.",matches:[],noMatch:true});}
+    }catch(e){setAiRes({message:"Une erreur est survenue.",matches:[],noMatch:true});}
     setAiLoad(false);
   };
   const aiMatches=aiRes?software.filter(s=>aiRes.matches?.some(m=>m.id===s.id)):[];
 
   return (
     <div style={{padding:"28px 36px"}}>
-      {/* Header */}
       <div style={{marginBottom:20}}>
         <div style={{fontFamily:SS,fontSize:9,letterSpacing:"0.2em",textTransform:"uppercase",color:C.stone,marginBottom:4}}>Catalogue</div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
           <h1 style={{margin:0,fontFamily:SF,fontSize:30,fontWeight:700,color:C.ink}}>Marketplace</h1>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
             <button onClick={()=>{if(!user){onAuth("register");return;}setShowAi(p=>!p);}} style={{display:"flex",alignItems:"center",gap:7,background:showAi?C.goldDim:"transparent",border:`1px solid ${showAi?C.gold+"66":C.linen}`,borderRadius:6,padding:"8px 14px",fontFamily:SS,fontSize:11,fontWeight:600,color:showAi?C.gold:C.stone,cursor:"pointer"}}>
-              <span>✦</span> Recherche IA
-              {!user&&<span style={{fontSize:9,background:C.gold,color:C.ink,borderRadius:2,padding:"1px 5px",fontWeight:800,marginLeft:2}}>PRO</span>}
+              <span>✦</span> Recherche IA{!user&&<span style={{fontSize:9,background:C.gold,color:C.ink,borderRadius:2,padding:"1px 5px",fontWeight:800,marginLeft:2}}>PRO</span>}
             </button>
             {user&&cart.length>0&&<button onClick={()=>setShowCart(true)} style={{background:C.gold,border:"none",borderRadius:6,padding:"8px 16px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.ink,cursor:"pointer"}}>🛒 {cart.length} · {cartTotal}€/mois</button>}
             {!user&&<button onClick={()=>onAuth("register")} style={{background:C.gold,border:"none",borderRadius:6,padding:"8px 16px",fontFamily:SS,fontSize:11,fontWeight:800,color:C.ink,cursor:"pointer",letterSpacing:"0.08em",textTransform:"uppercase"}}>Créer un compte</button>}
           </div>
         </div>
       </div>
-
-      {/* Bannière visiteur */}
       {!user&&(
         <div style={{background:C.goldDim,border:`1px solid ${C.gold}44`,borderRadius:8,padding:"12px 18px",marginBottom:18,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <span style={{color:C.gold}}>✦</span>
-            <span style={{fontFamily:SS,fontSize:12,color:C.ink}}>Créez un compte gratuit pour activer les <strong>essais 7 jours</strong> et accéder à votre espace pro.</span>
-          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{color:C.gold}}>✦</span><span style={{fontFamily:SS,fontSize:12,color:C.ink}}>Créez un compte gratuit pour activer les <strong>essais 7 jours</strong>.</span></div>
           <div style={{display:"flex",gap:8,flexShrink:0}}>
             <button onClick={()=>onAuth("login")} style={{background:"transparent",border:`1px solid ${C.linen}`,borderRadius:4,padding:"6px 14px",fontFamily:SS,fontSize:11,fontWeight:600,color:C.stone,cursor:"pointer"}}>Connexion</button>
             <button onClick={()=>onAuth("register")} style={{background:C.ink,border:"none",borderRadius:4,padding:"6px 14px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.ivory,cursor:"pointer",letterSpacing:"0.06em",textTransform:"uppercase"}}>S'inscrire</button>
           </div>
         </div>
       )}
-
-      {/* IA */}
       {showAi&&user&&(
         <div style={{background:C.paper,border:`1.5px solid ${C.gold}55`,borderRadius:10,padding:"18px 22px",marginBottom:18,position:"relative"}}>
           <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${C.gold},${C.goldL},transparent)`,borderRadius:"10px 10px 0 0"}}/>
           <div style={{fontFamily:SF,fontSize:14,fontWeight:700,color:C.ink,marginBottom:10}}>Décrivez votre besoin</div>
           <div style={{display:"flex",gap:10}}>
             <input value={aiQ} onChange={e=>setAiQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&runAi()} placeholder='Ex : "gérer mes rendez-vous et envoyer des rappels SMS"' style={{flex:1,background:C.ivory,border:`1px solid ${C.linen}`,borderRadius:6,padding:"10px 14px",fontFamily:SS,fontSize:13,color:C.ink,outline:"none"}}/>
-            <button onClick={runAi} disabled={aiLoad||!aiQ.trim()} style={{background:C.ink,border:"none",borderRadius:6,padding:"10px 20px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.ivory,cursor:"pointer",opacity:!aiQ.trim()?0.5:1,letterSpacing:"0.08em",textTransform:"uppercase",minWidth:100}}>
-              {aiLoad?"…":"Chercher"}
-            </button>
+            <button onClick={runAi} disabled={aiLoad||!aiQ.trim()} style={{background:C.ink,border:"none",borderRadius:6,padding:"10px 20px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.ivory,cursor:"pointer",opacity:!aiQ.trim()?0.5:1,letterSpacing:"0.08em",textTransform:"uppercase",minWidth:100}}>{aiLoad?"…":"Chercher"}</button>
           </div>
           {aiRes&&(
             <div style={{marginTop:14,borderTop:`1px solid ${C.linen}`,paddingTop:12}}>
@@ -379,13 +321,10 @@ const Marketplace=({user,setUser,software,setView,onAuth})=>{
                   );})}
                 </div>
               )}
-              {aiRes.noMatch&&<button onClick={()=>setView("c-devis")} style={{marginTop:8,background:C.gold,border:"none",borderRadius:6,padding:"8px 20px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.ink,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.08em"}}>Demander un logiciel sur mesure →</button>}
             </div>
           )}
         </div>
       )}
-
-      {/* Filtres */}
       <div style={{display:"flex",gap:8,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
         <div style={{position:"relative",flex:1,minWidth:180}}>
           <span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",color:C.sand}}>⌕</span>
@@ -395,31 +334,26 @@ const Marketplace=({user,setUser,software,setView,onAuth})=>{
           {CATS.map(c=><button key={c} onClick={()=>setCat(c)} style={{background:cat===c?C.ink:"transparent",border:`1px solid ${cat===c?C.ink:C.linen}`,borderRadius:20,padding:"6px 13px",color:cat===c?C.ivory:C.stone,cursor:"pointer",fontFamily:SS,fontSize:11,fontWeight:600}}>{c}</button>)}
         </div>
         <select value={sort} onChange={e=>setSort(e.target.value)} style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,padding:"8px 12px",fontFamily:SS,fontSize:12,color:C.ink,outline:"none",cursor:"pointer"}}>
-          <option value="popular">Plus populaires</option>
-          <option value="rating">Mieux notés</option>
-          <option value="price_asc">Prix croissant</option>
-          <option value="price_desc">Prix décroissant</option>
+          <option value="popular">Plus populaires</option><option value="rating">Mieux notés</option><option value="price_asc">Prix croissant</option><option value="price_desc">Prix décroissant</option>
         </select>
       </div>
-
-      {/* Grille */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:22}}>
         {list.map(sw=>{
           const sub=isSub(sw.id),trial=isTrial(sw.id),inC=isCart(sw.id);
           return (
-            <div key={sw.id} style={{background:C.paper,border:`1px solid ${sub?C.gold+"55":trial?C.green+"55":inC?C.ink+"33":C.linen}`,borderRadius:8,overflow:"hidden",display:"flex",flexDirection:"column",position:"relative",transition:"transform 0.18s,box-shadow 0.18s",cursor:"pointer"}}
+            <div key={sw.id} style={{background:C.paper,border:`1px solid ${sub?C.gold+"55":trial?C.green+"55":inC?C.ink+"33":C.linen}`,borderRadius:8,overflow:"hidden",display:"flex",flexDirection:"column",position:"relative",cursor:"pointer",transition:"transform 0.18s"}}
               onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow="0 6px 20px rgba(0,0,0,0.07)";}}
               onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}
             >
               {sw.popular&&!sub&&!trial&&<div style={{position:"absolute",top:10,right:10,background:C.gold,color:C.ink,fontSize:9,fontWeight:800,padding:"3px 7px",borderRadius:2,letterSpacing:"0.1em",textTransform:"uppercase"}}>Populaire</div>}
               {sub&&<div style={{position:"absolute",top:10,right:10,background:C.greenDim,color:C.green,fontSize:9,fontWeight:800,padding:"3px 7px",borderRadius:2,border:`1px solid ${C.green}44`}}>Abonné</div>}
-              {trial&&!sub&&<div style={{position:"absolute",top:10,right:10,background:C.goldDim,color:C.gold,fontSize:9,fontWeight:700,padding:"3px 7px",borderRadius:2,border:`1px solid ${C.gold}44`}}>Essai · {trialDaysLeft(user.trials[sw.id])}j</div>}
+              {trial&&!sub&&<div style={{position:"absolute",top:10,right:10,background:C.goldDim,color:C.gold,fontSize:9,fontWeight:700,padding:"3px 7px",borderRadius:2,border:`1px solid ${C.gold}44`}}>Essai · {trialDaysLeft(userTrials[sw.id])}j</div>}
               <div style={{padding:"16px 16px 0"}}>
                 <div style={{fontSize:24,marginBottom:8}}>{sw.icon}</div>
                 <div style={{fontFamily:SF,fontSize:13,fontWeight:700,color:C.ink,marginBottom:1}}>{sw.name}</div>
                 <div style={{fontFamily:SS,fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:C.stone,marginBottom:5}}>{sw.cat}</div>
                 <Stars r={sw.rating} sm/><div style={{fontFamily:SS,fontSize:10,color:C.stone,marginTop:2,marginBottom:8}}>{sw.reviews} avis</div>
-                <div style={{fontFamily:SS,fontSize:11,color:C.stone,lineHeight:1.5,marginBottom:10}}>{sw.desc}</div>
+                <div style={{fontFamily:SS,fontSize:11,color:C.stone,lineHeight:1.5,marginBottom:10}}>{sw.description}</div>
               </div>
               <div style={{flex:1}}/>
               <div style={{padding:"0 16px 14px"}}>
@@ -442,17 +376,10 @@ const Marketplace=({user,setUser,software,setView,onAuth})=>{
           );
         })}
       </div>
-
-      {/* CTA devis */}
       <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:8,padding:"20px 26px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:20}}>
-        <div>
-          <div style={{fontFamily:SF,fontSize:16,fontWeight:700,color:C.ink,marginBottom:3}}>Votre logiciel n'existe pas encore ?</div>
-          <div style={{fontFamily:SS,fontSize:12,color:C.stone}}>Développement sur mesure · Devis gratuit sous 48h · Support inclus</div>
-        </div>
+        <div><div style={{fontFamily:SF,fontSize:16,fontWeight:700,color:C.ink,marginBottom:3}}>Votre logiciel n'existe pas encore ?</div><div style={{fontFamily:SS,fontSize:12,color:C.stone}}>Développement sur mesure · Devis gratuit sous 48h</div></div>
         <button onClick={()=>user?setView("c-devis"):onAuth("register")} style={{background:C.ink,border:"none",borderRadius:6,padding:"10px 22px",fontFamily:SS,fontSize:11,fontWeight:800,letterSpacing:"0.1em",textTransform:"uppercase",color:C.ivory,cursor:"pointer",whiteSpace:"nowrap"}}>{user?"Demander un devis →":"Créer un compte →"}</button>
       </div>
-
-      {/* Detail modal */}
       {detail&&(
         <div style={{position:"fixed",inset:0,background:"rgba(5,5,4,0.7)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}}>
           <div style={{background:C.ivory,border:`1px solid ${C.linen}`,borderRadius:10,padding:36,width:420,maxHeight:"90vh",overflowY:"auto"}}>
@@ -460,117 +387,101 @@ const Marketplace=({user,setUser,software,setView,onAuth})=>{
             <div style={{fontFamily:SF,fontSize:18,fontWeight:700,color:C.ink,marginBottom:2}}>{detail.name}</div>
             <div style={{fontFamily:SS,fontSize:9,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:C.stone,marginBottom:9}}>{detail.cat}</div>
             <Stars r={detail.rating}/><div style={{fontFamily:SS,fontSize:11,color:C.stone,marginTop:3,marginBottom:13}}>{detail.reviews} avis</div>
-            <div style={{fontFamily:SS,fontSize:13,color:C.stone,lineHeight:1.6,marginBottom:14}}>{detail.desc}</div>
-            {detail.features?.length>0&&(
-              <div style={{marginBottom:14}}>
-                <div style={{fontFamily:SS,fontSize:9,fontWeight:700,letterSpacing:"0.16em",textTransform:"uppercase",color:C.stone,marginBottom:9}}>Fonctionnalités</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                  {detail.features.map(f=><div key={f} style={{display:"flex",gap:6}}><span style={{color:C.gold,fontSize:11}}>✦</span><span style={{fontFamily:SS,fontSize:12,color:C.ink}}>{f}</span></div>)}
-                </div>
-              </div>
-            )}
+            <div style={{fontFamily:SS,fontSize:13,color:C.stone,lineHeight:1.6,marginBottom:14}}>{detail.description}</div>
             <HR s={{marginBottom:14}}/>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
               <span style={{fontFamily:SF,fontWeight:700,fontSize:20,color:C.ink}}>{detail.price}€<span style={{fontSize:11,fontWeight:400,color:C.stone}}>/mois</span></span>
-              {isSub(detail.id)&&<span style={{fontFamily:SS,fontSize:11,fontWeight:700,color:C.green}}>✓ Abonné</span>}
-              {isTrial(detail.id)&&!isSub(detail.id)&&<span style={{fontFamily:SS,fontSize:11,fontWeight:700,color:C.gold}}>Essai · {trialDaysLeft(user.trials[detail.id])}j</span>}
-              {!isSub(detail.id)&&!isTrial(detail.id)&&user&&<button onClick={()=>startTrial(detail.id)} style={{background:C.greenDim,border:`1px solid ${C.green}44`,borderRadius:4,padding:"7px 14px",fontFamily:SS,fontSize:10,fontWeight:700,color:C.green,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.07em"}}>Essayer 7j gratuit</button>}
               {!user&&<button onClick={()=>onAuth("register")} style={{background:C.gold,border:"none",borderRadius:4,padding:"7px 14px",fontFamily:SS,fontSize:10,fontWeight:700,color:C.ink,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.07em"}}>Créer un compte</button>}
+              {user&&!isSub(detail.id)&&!isTrial(detail.id)&&<button onClick={()=>startTrial(detail.id)} style={{background:C.greenDim,border:`1px solid ${C.green}44`,borderRadius:4,padding:"7px 14px",fontFamily:SS,fontSize:10,fontWeight:700,color:C.green,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.07em"}}>Essayer 7j gratuit</button>}
             </div>
-            {user&&!isSub(detail.id)&&<button onClick={()=>{toggleCart(detail.id);setDetail(null);}} style={{width:"100%",background:isCart(detail.id)?C.ink:C.paper,border:`1px solid ${isCart(detail.id)?C.ink:C.linen}`,borderRadius:4,padding:"10px",fontFamily:SS,fontSize:11,fontWeight:700,color:isCart(detail.id)?C.ivory:C.ink,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.08em"}}>{isCart(detail.id)?"✓ Dans le panier":"+ Ajouter au panier"}</button>}
           </div>
         </div>
       )}
-
-      {/* Panier */}
       {showCart&&(
         <Overlay title="Mon panier" subtitle="Vos logiciels sélectionnés" onClose={()=>setShowCart(false)}>
           {cartItems.map((sw,i)=>(
-            <div key={sw.id}><div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 0"}}>
-              <span style={{fontSize:20}}>{sw.icon}</span>
-              <div style={{flex:1}}><div style={{fontFamily:SS,fontWeight:700,fontSize:13,color:C.ink}}>{sw.name}</div><div style={{fontFamily:SS,fontSize:11,color:C.stone}}>{sw.cat}</div></div>
-              <span style={{fontFamily:SF,fontWeight:700,fontSize:14,color:C.ink}}>{sw.price}€/mois</span>
-              <button onClick={()=>toggleCart(sw.id)} style={{background:"none",border:"none",color:C.stone,cursor:"pointer"}}>✕</button>
-            </div>{i<cartItems.length-1&&<HR/>}</div>
+            <div key={sw.id}><div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 0"}}><span style={{fontSize:20}}>{sw.icon}</span><div style={{flex:1}}><div style={{fontFamily:SS,fontWeight:700,fontSize:13,color:C.ink}}>{sw.name}</div></div><span style={{fontFamily:SF,fontWeight:700,fontSize:14,color:C.ink}}>{sw.price}€/mois</span><button onClick={()=>toggleCart(sw.id)} style={{background:"none",border:"none",color:C.stone,cursor:"pointer"}}>✕</button></div>{i<cartItems.length-1&&<HR/>}</div>
           ))}
           <HR s={{margin:"12px 0"}}/>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:18}}>
-            <span style={{fontFamily:SS,fontSize:11,fontWeight:700,color:C.stone,textTransform:"uppercase",letterSpacing:"0.08em"}}>Total mensuel</span>
-            <span style={{fontFamily:SF,fontWeight:700,fontSize:17,color:C.ink}}>{cartTotal} €</span>
-          </div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:18}}><span style={{fontFamily:SS,fontSize:11,fontWeight:700,color:C.stone,textTransform:"uppercase"}}>Total mensuel</span><span style={{fontFamily:SF,fontWeight:700,fontSize:17,color:C.ink}}>{cartTotal} €</span></div>
           <div style={{display:"flex",gap:10}}>
             <button onClick={()=>setShowCart(false)} style={{flex:1,background:"transparent",border:`1px solid ${C.linen}`,borderRadius:4,padding:"9px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.stone,cursor:"pointer",letterSpacing:"0.1em",textTransform:"uppercase"}}>Continuer</button>
             <button onClick={()=>{setShowCart(false);setShowPay(true);}} style={{flex:2,background:C.gold,border:"none",borderRadius:4,padding:"9px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.ink,cursor:"pointer",letterSpacing:"0.1em",textTransform:"uppercase"}}>Passer au paiement</button>
           </div>
         </Overlay>
       )}
-
-      {/* Paiement */}
       {showPay&&(
         <Overlay title="Paiement" subtitle="Abonnement mensuel · résiliable à tout moment" onClose={()=>setShowPay(false)}>
           <div style={{background:C.dim,border:`1px solid ${C.linen}`,borderRadius:6,padding:13,marginBottom:14}}>
-            {cartItems.map(sw=><div key={sw.id} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",fontFamily:SS,fontSize:12}}><span style={{color:C.ink}}>{sw.icon} {sw.name}</span><span style={{color:C.gold,fontWeight:700}}>{sw.price}€</span></div>)}
+            {cartItems.map(sw=><div key={sw.id} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",fontFamily:SS,fontSize:12}}><span>{sw.icon} {sw.name}</span><span style={{color:C.gold,fontWeight:700}}>{sw.price}€</span></div>)}
             <HR s={{margin:"9px 0"}}/>
             <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontFamily:SS,fontSize:10,fontWeight:700,color:C.stone,textTransform:"uppercase"}}>Total / mois</span><span style={{fontFamily:SF,fontWeight:700,fontSize:14,color:C.ink}}>{cartTotal} €</span></div>
           </div>
           <TI label="Numéro de carte" value="" onChange={()=>{}} placeholder="1234 5678 9012 3456"/>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-            <TI label="Expiration" value="" onChange={()=>{}} placeholder="MM / AA"/>
-            <TI label="CVV" value="" onChange={()=>{}} placeholder="•••"/>
-          </div>
-          <div style={{background:C.greenDim,border:`1px solid ${C.green}33`,borderRadius:4,padding:"8px 13px",marginBottom:14,fontFamily:SS,fontSize:11,color:C.green}}>🔒 Paiement sécurisé</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}><TI label="Expiration" value="" onChange={()=>{}} placeholder="MM / AA"/><TI label="CVV" value="" onChange={()=>{}} placeholder="•••"/></div>
+          <div style={{background:C.greenDim,border:`1px solid ${C.green}33`,borderRadius:4,padding:"8px 13px",marginBottom:14,fontFamily:SS,fontSize:11,color:C.green}}>🔒 Paiement sécurisé — Stripe (bientôt disponible)</div>
           <div style={{display:"flex",gap:10}}>
             <button onClick={()=>setShowPay(false)} style={{flex:1,background:"transparent",border:`1px solid ${C.linen}`,borderRadius:4,padding:"9px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.stone,cursor:"pointer",letterSpacing:"0.1em",textTransform:"uppercase"}}>Annuler</button>
             <button onClick={pay} style={{flex:2,background:C.gold,border:"none",borderRadius:4,padding:"9px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.ink,cursor:"pointer",letterSpacing:"0.1em",textTransform:"uppercase"}}>Confirmer · {cartTotal}€/mois</button>
           </div>
         </Overlay>
       )}
-
       {toast&&<Toast msg={toast} onClose={()=>setToast(null)}/>}
     </div>
   );
 };
 
 // ── Mon Espace ─────────────────────────────────────────────────────────────
-const MonEspace=({user,setUser,software})=>{
-  const myApps=software.filter(s=>user.subs.includes(s.id));
-  const myTrials=software.filter(s=>!user.subs.includes(s.id)&&isTrialActive(user.trials?.[s.id]));
-  const mrr=myApps.reduce((s,x)=>s+x.price,0);
-  const [unsub,setUnsub]=useState(null);
-  const [toast,setToast]=useState(null);
-  const doUnsub=()=>{setUser(u=>({...u,subs:u.subs.filter(x=>x!==unsub)}));setUnsub(null);setToast("Désabonnement effectué.");setTimeout(()=>setToast(null),3000);};
-  const invoices=[{id:"INV-2024-104",amount:mrr,date:"01 Déc 2024",status:"paid"},{id:"INV-2024-089",amount:Math.max(0,mrr-5),date:"01 Nov 2024",status:"paid"},{id:"INV-2024-074",amount:Math.max(0,mrr-5),date:"01 Oct 2024",status:"paid"}];
+const MonEspace=({user,software})=>{
+  const [subs,setSubs]=useState([]);
+  const [trials,setTrials]=useState([]);
+  const [invoices,setInvoices]=useState([]);
+  const [loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    if(!user?.id)return;
+    Promise.all([
+      supabase.from("subscriptions").select("*,software(*)").eq("user_id",user.id).eq("status","active"),
+      supabase.from("subscriptions").select("*,software(*)").eq("user_id",user.id).eq("status","trial"),
+      supabase.from("invoices").select("*").eq("user_id",user.id).order("created_at",{ascending:false}).limit(5),
+    ]).then(([{data:s},{data:t},{data:inv}])=>{
+      setSubs(s||[]);setTrials((t||[]).filter(x=>isTrialActive(x.trial_started_at)));setInvoices(inv||[]);setLoading(false);
+    });
+  },[user?.id]);
+
+  const mrr=subs.reduce((s,x)=>s+(x.software?.price||0),0);
+
+  if(loading)return <div style={{padding:"60px",textAlign:"center",fontFamily:SS,color:C.stone}}>Chargement…</div>;
+
   return (
     <div style={{padding:"28px 36px"}}>
       <div style={{marginBottom:22}}>
         <div style={{fontFamily:SS,fontSize:9,letterSpacing:"0.2em",textTransform:"uppercase",color:C.stone,marginBottom:4}}>Mon espace</div>
-        <h1 style={{margin:0,fontFamily:SF,fontSize:30,fontWeight:700,color:C.ink}}>Bonjour, {user.company} 👋</h1>
+        <h1 style={{margin:0,fontFamily:SF,fontSize:30,fontWeight:700,color:C.ink}}>Bonjour, {user.company||user.name} 👋</h1>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:22}}>
-        <KPI label="Abonnement mensuel" value={`${mrr} €`} sub={`${myApps.length} logiciel${myApps.length>1?"s":""} actif${myApps.length>1?"s":""}`} accent/>
-        <KPI label="Essais actifs" value={myTrials.length} sub={myTrials.length>0?myTrials.map(s=>s.name).join(", "):"Aucun essai en cours"}/>
-        <KPI label="Client depuis" value={user.since||"2024"} sub="Membre ONIQ"/>
+        <KPI label="Abonnement mensuel" value={`${mrr} €`} sub={`${subs.length} logiciel${subs.length>1?"s":""} actif${subs.length>1?"s":""}`} accent/>
+        <KPI label="Essais actifs" value={trials.length} sub={trials.length>0?trials.map(s=>s.software?.name).join(", "):"Aucun essai en cours"}/>
+        <KPI label="Client depuis" value={user.since||new Date(user.created_at).toLocaleDateString("fr-FR",{month:"short",year:"numeric"})} sub="Membre ONIQ"/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
         <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,overflow:"hidden"}}>
           <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.linen}`}}><span style={{fontFamily:SF,fontSize:14,fontWeight:600,color:C.ink}}>Mes logiciels</span></div>
-          {myApps.length===0&&<div style={{padding:"22px 18px",fontFamily:SS,fontSize:13,color:C.stone,textAlign:"center"}}>Aucun logiciel souscrit.</div>}
-          {myApps.map((sw,i)=>(
-            <div key={sw.id}><div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 18px"}}>
-              <div style={{width:34,height:34,borderRadius:6,background:C.goldDim,border:`1px solid ${C.goldB}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>{sw.icon}</div>
-              <div style={{flex:1}}><div style={{fontFamily:SS,fontWeight:700,fontSize:12,color:C.ink}}>{sw.name}</div><div style={{fontFamily:SS,fontSize:10,color:C.green,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em"}}>● Actif · {sw.price}€/mois</div></div>
-              <button onClick={()=>setUnsub(sw.id)} style={{background:"none",border:`1px solid ${C.linen}`,borderRadius:4,padding:"5px 9px",fontFamily:SS,fontSize:10,color:C.stone,cursor:"pointer"}}>✕</button>
-            </div>{i<myApps.length-1&&<HR s={{margin:"0 18px"}}/>}</div>
+          {subs.length===0&&<div style={{padding:"22px 18px",fontFamily:SS,fontSize:13,color:C.stone,textAlign:"center"}}>Aucun logiciel souscrit.</div>}
+          {subs.map((s,i)=>(
+            <div key={s.id}><div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 18px"}}>
+              <div style={{width:34,height:34,borderRadius:6,background:C.goldDim,border:`1px solid ${C.goldB}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>{s.software?.icon}</div>
+              <div style={{flex:1}}><div style={{fontFamily:SS,fontWeight:700,fontSize:12,color:C.ink}}>{s.software?.name}</div><div style={{fontFamily:SS,fontSize:10,color:C.green,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em"}}>● Actif · {s.software?.price}€/mois</div></div>
+            </div>{i<subs.length-1&&<HR s={{margin:"0 18px"}}/>}</div>
           ))}
-          {myTrials.length>0&&(
+          {trials.length>0&&(
             <>
               <div style={{padding:"9px 18px",background:C.goldDim,borderTop:`1px solid ${C.linen}`,fontFamily:SS,fontSize:9,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:C.gold}}>Essais en cours</div>
-              {myTrials.map((sw,i)=>(
-                <div key={sw.id}><div style={{display:"flex",alignItems:"center",gap:12,padding:"11px 18px"}}>
-                  <div style={{width:34,height:34,borderRadius:6,background:C.goldDim,border:`1px solid ${C.goldB}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>{sw.icon}</div>
-                  <div style={{flex:1}}><div style={{fontFamily:SS,fontWeight:700,fontSize:12,color:C.ink}}>{sw.name}</div><div style={{fontFamily:SS,fontSize:10,color:C.gold,fontWeight:700,marginTop:2}}>{trialDaysLeft(user.trials[sw.id])} jours restants</div></div>
-                  <button style={{background:C.ink,border:"none",borderRadius:4,padding:"5px 12px",fontFamily:SS,fontSize:10,fontWeight:700,color:C.ivory,cursor:"pointer",letterSpacing:"0.06em",textTransform:"uppercase"}}>S'abonner</button>
-                </div>{i<myTrials.length-1&&<HR s={{margin:"0 18px"}}/>}</div>
+              {trials.map((s,i)=>(
+                <div key={s.id}><div style={{display:"flex",alignItems:"center",gap:12,padding:"11px 18px"}}>
+                  <div style={{width:34,height:34,borderRadius:6,background:C.goldDim,border:`1px solid ${C.goldB}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>{s.software?.icon}</div>
+                  <div style={{flex:1}}><div style={{fontFamily:SS,fontWeight:700,fontSize:12,color:C.ink}}>{s.software?.name}</div><div style={{fontFamily:SS,fontSize:10,color:C.gold,fontWeight:700,marginTop:2}}>{trialDaysLeft(s.trial_started_at)} jours restants</div></div>
+                </div>{i<trials.length-1&&<HR s={{margin:"0 18px"}}/>}</div>
               ))}
             </>
           )}
@@ -581,36 +492,21 @@ const MonEspace=({user,setUser,software})=>{
         </div>
         <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,overflow:"hidden"}}>
           <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.linen}`}}><span style={{fontFamily:SF,fontSize:14,fontWeight:600,color:C.ink}}>Mes factures</span></div>
+          {invoices.length===0&&<div style={{padding:"22px 18px",fontFamily:SS,fontSize:13,color:C.stone,textAlign:"center"}}>Aucune facture pour le moment.</div>}
           {invoices.map((inv,i)=>(
             <div key={inv.id}><div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 18px"}}>
-              <div style={{flex:1}}><div style={{fontFamily:SS,fontSize:12,fontWeight:600,color:C.ink}}>{inv.id}</div><div style={{fontFamily:SS,fontSize:10,color:C.stone,marginTop:2}}>{inv.date}</div></div>
+              <div style={{flex:1}}><div style={{fontFamily:SS,fontSize:12,fontWeight:600,color:C.ink}}>{inv.invoice_number||`INV-${inv.id}`}</div><div style={{fontFamily:SS,fontSize:10,color:C.stone,marginTop:2}}>{new Date(inv.created_at).toLocaleDateString("fr-FR")}</div></div>
               <span style={{fontFamily:SF,fontWeight:700,fontSize:13,color:C.ink,marginRight:10}}>{inv.amount} €</span>
               <Badge status={inv.status}/>
             </div>{i<invoices.length-1&&<HR s={{margin:"0 18px"}}/>}</div>
           ))}
-          <div style={{padding:"12px 18px",borderTop:`1px solid ${C.linen}`}}>
-            <button style={{width:"100%",background:C.ink,border:"none",borderRadius:4,padding:11,fontFamily:SS,fontSize:11,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:C.ivory,cursor:"pointer"}}>Payer maintenant · {mrr} €</button>
-          </div>
         </div>
       </div>
-      {unsub&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(5,5,4,0.65)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:C.ivory,border:`1px solid ${C.linen}`,borderRadius:8,padding:36,width:320,textAlign:"center"}}>
-            <div style={{fontFamily:SF,fontSize:17,fontWeight:700,color:C.ink,marginBottom:7}}>Se désabonner ?</div>
-            <div style={{fontFamily:SS,fontSize:12,color:C.stone,marginBottom:22}}>Vous perdrez l'accès à <strong>{software.find(s=>s.id===unsub)?.name}</strong> fin du mois.</div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setUnsub(null)} style={{flex:1,background:"transparent",border:`1px solid ${C.linen}`,borderRadius:4,padding:"9px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.stone,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.1em"}}>Annuler</button>
-              <button onClick={doUnsub} style={{flex:1,background:C.redDim,border:`1px solid ${C.red}44`,borderRadius:4,padding:"9px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.red,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.1em"}}>Confirmer</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {toast&&<Toast msg={toast} onClose={()=>setToast(null)}/>}
     </div>
   );
 };
 
-// ── Parrainage client ──────────────────────────────────────────────────────
+// ── Parrainage ─────────────────────────────────────────────────────────────
 const Parrainage=({user})=>{
   const [copied,setCopied]=useState(false);
   return (
@@ -618,13 +514,13 @@ const Parrainage=({user})=>{
       <PH section="Avantages" title="Programme de parrainage"/>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:20}}>
         <KPI label="Parrainages effectués" value={user.referrals||0} sub="clients référencés" trend/>
-        <KPI label="Mois offerts" value={user.referralCredit||0} sub="crédits accumulés" accent/>
+        <KPI label="Mois offerts" value={user.referral_credit||0} sub="crédits accumulés" accent/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
         <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:8,padding:24}}>
           <div style={{fontFamily:SF,fontSize:15,fontWeight:700,color:C.ink,marginBottom:12}}>Votre lien de parrainage</div>
-          <div style={{background:C.goldDim,border:`1px solid ${C.goldB}`,borderRadius:6,padding:"12px 16px",fontFamily:SS,fontWeight:700,fontSize:14,color:C.gold,letterSpacing:"0.1em",marginBottom:11}}>oniq.fr/ref/{user.referralCode}</div>
-          <button onClick={()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);}} style={{width:"100%",background:copied?C.greenDim:C.ink,border:`1px solid ${copied?C.green+"44":"transparent"}`,borderRadius:4,padding:"10px",fontFamily:SS,fontSize:11,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:copied?C.green:C.ivory,cursor:"pointer",transition:"all 0.3s"}}>{copied?"✓ Lien copié !":"Copier le lien"}</button>
+          <div style={{background:C.goldDim,border:`1px solid ${C.goldB}`,borderRadius:6,padding:"12px 16px",fontFamily:SS,fontWeight:700,fontSize:14,color:C.gold,letterSpacing:"0.1em",marginBottom:11}}>oniq.fr/ref/{user.referral_code}</div>
+          <button onClick={()=>{navigator.clipboard?.writeText(`https://oniq.fr/ref/${user.referral_code}`);setCopied(true);setTimeout(()=>setCopied(false),2500);}} style={{width:"100%",background:copied?C.greenDim:C.ink,border:`1px solid ${copied?C.green+"44":"transparent"}`,borderRadius:4,padding:"10px",fontFamily:SS,fontSize:11,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",color:copied?C.green:C.ivory,cursor:"pointer",transition:"all 0.3s"}}>{copied?"✓ Lien copié !":"Copier le lien"}</button>
         </div>
         <div style={{background:C.ink,borderRadius:8,padding:24}}>
           <div style={{fontFamily:SF,fontSize:15,fontWeight:600,color:C.ivory,marginBottom:14}}>Comment ça marche ?</div>
@@ -640,10 +536,22 @@ const Parrainage=({user})=>{
   );
 };
 
-// ── Devis client ───────────────────────────────────────────────────────────
+// ── Devis Client ───────────────────────────────────────────────────────────
 const DevisClient=({user})=>{
   const [form,setForm]=useState({desc:"",budget:""});
   const [sent,setSent]=useState(false);
+  const [loading,setLoading]=useState(false);
+
+  const submit=async()=>{
+    if(!form.desc)return;
+    setLoading(true);
+    await supabase.from("devis").insert({
+      user_id:user.id,client_name:user.company||user.name,
+      client_email:user.email,description:form.desc,budget:form.budget,status:"pending"
+    });
+    setSent(true);setLoading(false);
+  };
+
   return (
     <div style={{padding:"28px 36px"}}>
       <PH section="Sur mesure" title="Demande de devis"/>
@@ -668,7 +576,7 @@ const DevisClient=({user})=>{
                   <option value="">Non défini</option><option>{"<"} 50€/mois</option><option>50–100€/mois</option><option>100–200€/mois</option><option>{">"} 200€/mois</option>
                 </select>
               </div>
-              <button onClick={()=>form.desc&&setSent(true)} style={{width:"100%",background:C.gold,border:"none",borderRadius:4,padding:12,fontFamily:SS,fontSize:11,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:C.ink,cursor:"pointer",opacity:form.desc?1:0.5}}>Envoyer ma demande</button>
+              <button onClick={submit} disabled={!form.desc||loading} style={{width:"100%",background:C.gold,border:"none",borderRadius:4,padding:12,fontFamily:SS,fontSize:11,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:C.ink,cursor:"pointer",opacity:form.desc&&!loading?1:0.5}}>{loading?"Envoi…":"Envoyer ma demande"}</button>
             </div>
           )}
         </div>
@@ -686,7 +594,7 @@ const DevisClient=({user})=>{
   );
 };
 
-// ── Sections publiques ─────────────────────────────────────────────────────
+// ── Pages publiques ────────────────────────────────────────────────────────
 const Secteurs=({onSector,onAuth})=>(
   <div style={{padding:"28px 36px"}}>
     <PH section="Référencement local" title="Solutions par secteur"/>
@@ -707,38 +615,6 @@ const Secteurs=({onSector,onAuth})=>(
     </div>
   </div>
 );
-
-const SectorDetail=({sector,onBack,onAuth,user,onTrial})=>{
-  const icons={Boulangerie:"🥖",Coiffure:"✂️",Garage:"🔧",Restaurant:"🍽️","Auto-école":"🚗",Pharmacie:"💊",Commerce:"🏪",Beauté:"💅",Artisanat:"🔨",Médecine:"🏥"};
-  const shown=SW_DB.filter(sw=>sw.sector.includes(sector));
-  const list=shown.length>0?shown:SW_DB.slice(0,3);
-  return (
-    <div style={{padding:"28px 36px"}}>
-      <button onClick={onBack} style={{background:"none",border:"none",color:C.stone,cursor:"pointer",fontFamily:SS,fontSize:10,letterSpacing:"0.14em",textTransform:"uppercase",marginBottom:18,padding:0}}>← Retour aux secteurs</button>
-      <div style={{background:`linear-gradient(135deg,${C.ink},#1c1409)`,borderRadius:10,padding:"32px 36px",marginBottom:22,textAlign:"center"}}>
-        <div style={{fontSize:42,marginBottom:10}}>{icons[sector]||"🛠️"}</div>
-        <div style={{fontFamily:SS,fontSize:9,letterSpacing:"0.22em",textTransform:"uppercase",color:C.gold,marginBottom:7}}>Logiciel {sector}</div>
-        <div style={{fontFamily:SF,fontSize:26,fontWeight:700,color:C.ivory,marginBottom:8}}>Le logiciel parfait pour votre {sector.toLowerCase()}.</div>
-        <div style={{fontFamily:SS,fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:20}}>Essai 7 jours gratuit · Sans carte bancaire</div>
-        <button onClick={()=>onAuth("register")} style={{background:C.gold,border:"none",borderRadius:6,padding:"11px 26px",fontFamily:SS,fontSize:11,fontWeight:800,letterSpacing:"0.12em",textTransform:"uppercase",color:C.ink,cursor:"pointer"}}>Commencer gratuitement</button>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16}}>
-        {list.map(sw=>(
-          <div key={sw.id} style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:8,padding:20}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}><span style={{fontSize:24}}>{sw.icon}</span>{sw.popular&&<span style={{background:C.gold,color:C.ink,fontSize:9,fontWeight:800,padding:"3px 7px",borderRadius:2,letterSpacing:"0.1em",textTransform:"uppercase",alignSelf:"flex-start"}}>Populaire</span>}</div>
-            <div style={{fontFamily:SF,fontSize:14,fontWeight:700,color:C.ink,marginBottom:3}}>{sw.name}</div>
-            <Stars r={sw.rating} sm/><div style={{fontFamily:SS,fontSize:11,color:C.stone,marginTop:2,marginBottom:10}}>{sw.reviews} avis</div>
-            <HR s={{marginBottom:10}}/>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{fontFamily:SF,fontWeight:700,fontSize:17,color:C.gold}}>{sw.price}€<span style={{fontSize:11,fontWeight:400,color:C.stone}}>/mois</span></div>
-              <button onClick={()=>onAuth("register")} style={{background:C.ink,border:"none",borderRadius:4,padding:"6px 12px",fontFamily:SS,fontSize:10,fontWeight:700,color:C.ivory,cursor:"pointer",letterSpacing:"0.08em",textTransform:"uppercase"}}>Essayer</button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
 
 const Apropos=({onAuth})=>(
   <div style={{padding:"28px 36px"}}>
@@ -772,299 +648,136 @@ const Apropos=({onAuth})=>(
   </div>
 );
 
-// ── Admin ──────────────────────────────────────────────────────────────────
-const AdminDash=({users,software,devis,setView})=>{
-  const clients=users.filter(u=>u.role==="client");
-  const totalMrr=clients.reduce((s,c)=>s+getMrr(c.subs),0);
-  const overdue=clients.filter(c=>c.status==="overdue");
-  const trials=clients.filter(c=>c.status==="trial");
-  const pendQ=devis.filter(d=>d.status==="pending");
-  const conv=Math.round((clients.filter(c=>c.status==="active").length/Math.max(1,clients.length))*100);
+// ── Admin Dashboard ────────────────────────────────────────────────────────
+const AdminDash=({setView})=>{
+  const [stats,setStats]=useState({clients:0,mrr:0,trials:0,pendingDevis:0});
+  const [clients,setClients]=useState([]);
+
+  useEffect(()=>{
+    Promise.all([
+      supabase.from("profiles").select("*").eq("role","client"),
+      supabase.from("subscriptions").select("*,software(price)").eq("status","active"),
+      supabase.from("subscriptions").select("*").eq("status","trial"),
+      supabase.from("devis").select("*").eq("status","pending"),
+    ]).then(([{data:p},{data:s},{data:t},{data:d}])=>{
+      const mrr=(s||[]).reduce((sum,x)=>sum+(x.software?.price||0),0);
+      setStats({clients:(p||[]).length,mrr,trials:(t||[]).length,pendingDevis:(d||[]).length});
+      setClients((p||[]).slice(0,5));
+    });
+  },[]);
+
   return (
     <div>
       <PH section="Vue générale" title="Tableau de bord"/>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:20}}>
-        <KPI label="MRR" value={`${totalMrr} €`} sub="+12% ce mois" trend accent/>
-        <KPI label="Clients actifs" value={clients.filter(c=>c.status==="active").length} sub={`${clients.length} total`}/>
-        <KPI label="Conversion" value={`${conv}%`} sub="Trial → Actif" trend/>
-        <KPI label="Devis en attente" value={pendQ.length} sub="à traiter"/>
+        <KPI label="MRR" value={`${stats.mrr} €`} sub="revenus mensuels" accent trend/>
+        <KPI label="Clients" value={stats.clients} sub="comptes actifs"/>
+        <KPI label="Essais actifs" value={stats.trials} sub="en cours"/>
+        <KPI label="Devis en attente" value={stats.pendingDevis} sub="à traiter"/>
       </div>
       <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,padding:"18px 22px",marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-          <div style={{fontFamily:SF,fontSize:14,fontWeight:600,color:C.ink}}>Évolution MRR</div>
-          <div style={{fontFamily:SF,fontWeight:700,fontSize:16,color:C.gold}}>{totalMrr} €/mois</div>
+          <div style={{fontFamily:SF,fontSize:14,fontWeight:600,color:C.ink}}>Évolution MRR (projection)</div>
+          <div style={{fontFamily:SF,fontWeight:700,fontSize:16,color:C.gold}}>{stats.mrr} €/mois</div>
         </div>
         <Sparkline data={MRR_HIST}/>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1.4fr 1fr",gap:16}}>
-        <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,overflow:"hidden"}}>
-          <div style={{padding:"13px 18px",borderBottom:`1px solid ${C.linen}`,display:"flex",justifyContent:"space-between"}}>
-            <span style={{fontFamily:SF,fontSize:13,fontWeight:600,color:C.ink}}>Clients récents</span>
-            <button onClick={()=>setView("a-clients")} style={{background:"none",border:"none",color:C.gold,cursor:"pointer",fontFamily:SS,fontSize:10,fontWeight:700,letterSpacing:"0.1em"}}>VOIR TOUT →</button>
-          </div>
-          {clients.slice(0,5).map((c,i)=>(
-            <div key={c.id}><div style={{display:"flex",alignItems:"center",gap:12,padding:"11px 18px"}}>
-              <Mono i={c.avatar} size={28}/>
-              <div style={{flex:1}}><div style={{fontFamily:SS,fontWeight:600,fontSize:12,color:C.ink}}>{c.company}</div><div style={{fontFamily:SS,fontSize:11,color:C.stone}}>{c.subs.length} logiciel{c.subs.length>1?"s":""}</div></div>
-              <div style={{textAlign:"right"}}><div style={{fontFamily:SF,fontWeight:700,fontSize:12,color:C.ink}}>{getMrr(c.subs)} €</div><div style={{marginTop:3}}><Badge status={c.status}/></div></div>
-            </div>{i<4&&<HR s={{margin:"0 18px"}}/>}</div>
-          ))}
+      <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,overflow:"hidden"}}>
+        <div style={{padding:"13px 18px",borderBottom:`1px solid ${C.linen}`,display:"flex",justifyContent:"space-between"}}>
+          <span style={{fontFamily:SF,fontSize:13,fontWeight:600,color:C.ink}}>Derniers clients</span>
+          <button onClick={()=>setView("a-clients")} style={{background:"none",border:"none",color:C.gold,cursor:"pointer",fontFamily:SS,fontSize:10,fontWeight:700,letterSpacing:"0.1em"}}>VOIR TOUT →</button>
         </div>
-        <div style={{display:"flex",flexDirection:"column",gap:14}}>
-          <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,overflow:"hidden"}}>
-            <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.linen}`}}><span style={{fontFamily:SF,fontSize:13,fontWeight:600,color:C.ink}}>Notifications</span></div>
-            <div>
-              {pendQ.length>0&&<div style={{display:"flex",gap:10,padding:"10px 14px",borderBottom:`1px solid ${C.linen}`}}><span style={{color:C.amber}}>◎</span><div><div style={{fontFamily:SS,fontSize:12,fontWeight:600,color:C.ink}}>{pendQ.length} devis en attente</div></div></div>}
-              {overdue.length>0&&<div style={{display:"flex",gap:10,padding:"10px 14px",borderBottom:`1px solid ${C.linen}`}}><span style={{color:C.red}}>⚠</span><div><div style={{fontFamily:SS,fontSize:12,fontWeight:600,color:C.ink}}>{overdue.length} paiement{overdue.length>1?"s":""} en retard</div></div></div>}
-              {trials.length>0&&<div style={{display:"flex",gap:10,padding:"10px 14px"}}><span style={{color:C.gold}}>✦</span><div><div style={{fontFamily:SS,fontSize:12,fontWeight:600,color:C.ink}}>{trials.length} client{trials.length>1?"s":""} en essai</div></div></div>}
-              {!pendQ.length&&!overdue.length&&!trials.length&&<div style={{padding:"14px",fontFamily:SS,fontSize:12,color:C.stone}}>✓ Tout est à jour</div>}
-            </div>
-          </div>
-          <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,overflow:"hidden"}}>
-            <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.linen}`}}><span style={{fontFamily:SF,fontSize:13,fontWeight:600,color:C.ink}}>Top logiciels</span></div>
-            <div style={{padding:"12px 16px"}}>
-              {software.slice(0,4).map(s=>{const cnt=clients.filter(c=>c.subs.includes(s.id)).length;return(
-                <div key={s.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
-                  <span style={{fontSize:13}}>{s.icon}</span>
-                  <div style={{flex:1}}>
-                    <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontFamily:SS,fontSize:11,fontWeight:600,color:C.ink}}>{s.name}</span><span style={{fontFamily:SS,fontSize:11,color:C.stone}}>{cnt}</span></div>
-                    <div style={{height:3,background:C.linen,borderRadius:2,marginTop:3}}><div style={{height:"100%",borderRadius:2,background:`linear-gradient(90deg,${C.gold},${C.goldL})`,width:`${(cnt/Math.max(1,clients.length))*100}%`}}/></div>
-                  </div>
-                </div>
-              );})}
-            </div>
-          </div>
-        </div>
+        {clients.length===0&&<div style={{padding:"20px",fontFamily:SS,fontSize:12,color:C.stone}}>Aucun client encore.</div>}
+        {clients.map((c,i)=>(
+          <div key={c.id}><div style={{display:"flex",alignItems:"center",gap:12,padding:"11px 18px"}}>
+            <Mono i={(c.company||c.name||"?").slice(0,2).toUpperCase()} size={28}/>
+            <div style={{flex:1}}><div style={{fontFamily:SS,fontWeight:600,fontSize:12,color:C.ink}}>{c.company||c.name}</div><div style={{fontFamily:SS,fontSize:11,color:C.stone}}>{c.email}</div></div>
+            <Badge status={c.status}/>
+          </div>{i<clients.length-1&&<HR s={{margin:"0 18px"}}/>}</div>
+        ))}
       </div>
     </div>
   );
 };
 
-const AdminClients=({users,setUsers,software,setView,setSelClient})=>{
-  const clients=users.filter(u=>u.role==="client");
+const AdminClients=({setView,setSelClient})=>{
+  const [clients,setClients]=useState([]);
   const [search,setSearch]=useState("");
-  const [filter,setFilter]=useState("all");
-  const [showAdd,setShowAdd]=useState(false);
-  const [form,setForm]=useState({company:"",email:"",sector:""});
-  const filtered=clients.filter(c=>{const q=search.toLowerCase();return(c.company.toLowerCase().includes(q)||c.email.toLowerCase().includes(q))&&(filter==="all"||c.status===filter);});
-  const add=()=>{if(!form.company||!form.email)return;setUsers(p=>[...p,{id:Date.now(),role:"client",name:form.company,company:form.company,email:form.email,password:"client",avatar:form.company.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase(),subs:[],trials:{},since:new Date().toLocaleDateString("fr-FR",{month:"short",year:"numeric"}),status:"trial",sector:form.sector,referralCode:genCode(),referrals:0,referralCredit:0}]);setForm({company:"",email:"",sector:""});setShowAdd(false);};
+  const [loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    supabase.from("profiles").select("*").eq("role","client").then(({data})=>{setClients(data||[]);setLoading(false);});
+  },[]);
+
+  const filtered=clients.filter(c=>{const q=search.toLowerCase();return(c.company||"").toLowerCase().includes(q)||(c.email||"").toLowerCase().includes(q);});
+
   return (
     <div>
-      <PH section="Gestion" title="Clients" action={<button onClick={()=>setShowAdd(true)} style={{background:C.ink,border:"none",borderRadius:4,padding:"9px 18px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.ivory,cursor:"pointer",letterSpacing:"0.1em",textTransform:"uppercase"}}>+ Nouveau client</button>}/>
-      <div style={{display:"flex",gap:10,marginBottom:16}}>
-        <div style={{flex:1,position:"relative"}}>
-          <span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",color:C.sand}}>⌕</span>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher…" style={{width:"100%",background:C.paper,border:`1px solid ${C.linen}`,borderRadius:4,padding:"9px 12px 9px 30px",fontFamily:SS,fontSize:13,color:C.ink,outline:"none",boxSizing:"border-box"}}/>
-        </div>
-        {["all","active","trial","overdue"].map(f=>(
-          <button key={f} onClick={()=>setFilter(f)} style={{background:filter===f?C.ink:"transparent",border:`1px solid ${filter===f?C.ink:C.linen}`,borderRadius:4,padding:"8px 13px",color:filter===f?C.ivory:C.stone,cursor:"pointer",fontFamily:SS,fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>
-            {{all:"Tous",active:"Actifs",trial:"Essai",overdue:"Retard"}[f]}
-          </button>
-        ))}
+      <PH section="Gestion" title="Clients"/>
+      <div style={{marginBottom:14}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher un client…" style={{width:"100%",background:C.paper,border:`1px solid ${C.linen}`,borderRadius:4,padding:"10px 14px",fontFamily:SS,fontSize:13,color:C.ink,outline:"none",boxSizing:"border-box"}}/>
       </div>
+      {loading&&<div style={{padding:"40px",textAlign:"center",fontFamily:SS,color:C.stone}}>Chargement…</div>}
       <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,overflow:"hidden"}}>
-        <div style={{display:"grid",gridTemplateColumns:"2fr 2fr 1fr 2fr 1fr 1fr",padding:"9px 18px",background:C.dim,borderBottom:`1px solid ${C.linen}`,gap:12}}>
-          {["Entreprise","Email","Secteur","Logiciels","MRR","Statut"].map(h=><div key={h} style={{fontFamily:SS,fontSize:9,fontWeight:700,letterSpacing:"0.16em",textTransform:"uppercase",color:C.stone}}>{h}</div>)}
-        </div>
+        {!loading&&filtered.length===0&&<div style={{padding:"30px",textAlign:"center",fontFamily:SS,color:C.stone}}>Aucun client trouvé.</div>}
         {filtered.map((c,i)=>(
-          <div key={c.id}><div onClick={()=>{setSelClient(c);setView("a-client-detail");}} style={{display:"grid",gridTemplateColumns:"2fr 2fr 1fr 2fr 1fr 1fr",padding:"12px 18px",gap:12,cursor:"pointer",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background=C.dim} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}><Mono i={c.avatar} size={26}/><span style={{fontFamily:SS,fontWeight:600,fontSize:12,color:C.ink}}>{c.company}</span></div>
-            <div style={{fontFamily:SS,fontSize:11,color:C.stone}}>{c.email}</div>
-            <div style={{fontFamily:SS,fontSize:11,color:C.stone}}>{c.sector||"–"}</div>
-            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-              {c.subs.slice(0,2).map(id=>{const sw=software.find(x=>x.id===id);return sw?<span key={id} style={{background:C.goldDim,color:C.gold,fontSize:9,padding:"2px 7px",borderRadius:2,fontWeight:700}}>{sw.name}</span>:null;})}
-              {c.subs.length>2&&<span style={{color:C.stone,fontSize:10}}>+{c.subs.length-2}</span>}
-            </div>
-            <div style={{fontFamily:SF,fontWeight:700,fontSize:13,color:C.ink}}>{getMrr(c.subs)} €</div>
-            <Badge status={c.status}/>
+          <div key={c.id}><div onClick={()=>{setSelClient(c);setView("a-client-detail");}} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 18px",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=C.dim} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <Mono i={(c.company||c.name||"?").slice(0,2).toUpperCase()} size={32}/>
+            <div style={{flex:1}}><div style={{fontFamily:SS,fontWeight:700,fontSize:13,color:C.ink}}>{c.company||c.name}</div><div style={{fontFamily:SS,fontSize:11,color:C.stone,marginTop:2}}>{c.email} · {c.sector||"Secteur non défini"}</div></div>
+            <Badge status={c.status||"active"}/>
+            <span style={{fontFamily:SS,fontSize:11,color:C.stone}}>→</span>
           </div>{i<filtered.length-1&&<HR s={{margin:"0 18px"}}/>}</div>
         ))}
       </div>
-      {showAdd&&(
-        <Overlay title="Nouveau client" onClose={()=>setShowAdd(false)}>
-          <TI label="Nom de l'entreprise" value={form.company} onChange={e=>setForm(p=>({...p,company:e.target.value}))}/>
-          <TI label="Email" value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} type="email"/>
-          <div style={{marginBottom:16}}>
-            <FL label="Secteur"/>
-            <select value={form.sector} onChange={e=>setForm(p=>({...p,sector:e.target.value}))} style={{width:"100%",background:C.paper,border:`1px solid ${C.linen}`,borderRadius:4,padding:"11px 14px",fontFamily:SS,fontSize:13,color:C.ink,outline:"none"}}>
-              <option value="">–</option>{SECTORS.map(s=><option key={s}>{s}</option>)}
-            </select>
-          </div>
-          <div style={{display:"flex",gap:10}}>
-            <button onClick={()=>setShowAdd(false)} style={{flex:1,background:"transparent",border:`1px solid ${C.linen}`,borderRadius:4,padding:"9px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.stone,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.1em"}}>Annuler</button>
-            <button onClick={add} style={{flex:2,background:C.ink,border:"none",borderRadius:4,padding:"9px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.ivory,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.1em"}}>Créer</button>
-          </div>
-        </Overlay>
-      )}
     </div>
   );
 };
 
-const AdminClientDetail=({client,setClient,users,setUsers,software,setView})=>{
-  const [tab,setTab]=useState("overview");
-  const [editSw,setEditSw]=useState(false);
-  const [tmpSw,setTmpSw]=useState(client?.subs||[]);
-  if(!client)return null;
-  const mrr=getMrr(client.subs);
-  const save=()=>{const u={...client,subs:tmpSw};setUsers(p=>p.map(x=>x.id===client.id?u:x));setClient(u);setEditSw(false);};
-  const updStatus=s=>{const u={...client,status:s};setUsers(p=>p.map(x=>x.id===client.id?u:x));setClient(u);};
-  return (
-    <div>
-      <button onClick={()=>setView("a-clients")} style={{background:"none",border:"none",color:C.stone,cursor:"pointer",fontFamily:SS,fontSize:10,letterSpacing:"0.14em",textTransform:"uppercase",marginBottom:14,padding:0}}>← Retour</button>
-      <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:18,paddingBottom:18,borderBottom:`1px solid ${C.linen}`}}>
-        <Mono i={client.avatar} size={44}/>
-        <div style={{flex:1}}><h1 style={{margin:0,fontFamily:SF,fontSize:22,fontWeight:700,color:C.ink}}>{client.company}</h1><div style={{fontFamily:SS,fontSize:11,color:C.stone,marginTop:2}}>{client.email} · {client.sector||"–"} · Depuis {client.since}</div></div>
-        <select value={client.status} onChange={e=>updStatus(e.target.value)} style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:4,padding:"7px 12px",fontFamily:SS,fontSize:12,color:C.ink,cursor:"pointer",outline:"none"}}>
-          <option value="active">Actif</option><option value="trial">Essai</option><option value="overdue">En retard</option>
-        </select>
-      </div>
-      <div style={{display:"flex",gap:0,borderBottom:`1px solid ${C.linen}`,marginBottom:20}}>
-        {[["overview","Résumé"],["subs","Abonnements"],["invoices","Factures"],["referral","Parrainage"]].map(([k,l])=>(
-          <button key={k} onClick={()=>setTab(k)} style={{background:"none",border:"none",borderBottom:`2px solid ${tab===k?C.gold:"transparent"}`,padding:"8px 18px",fontFamily:SS,fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:tab===k?C.gold:C.stone,cursor:"pointer",marginBottom:-1}}>{l}</button>
-        ))}
-      </div>
-      {tab==="overview"&&(
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><KPI label="MRR" value={`${mrr} €`} accent/><KPI label="ARR" value={`${mrr*12} €`}/><KPI label="Logiciels" value={client.subs.length}/><KPI label="Parrainages" value={client.referrals||0}/></div>
-          <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,padding:20}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-              <span style={{fontFamily:SF,fontSize:13,fontWeight:600,color:C.ink}}>Logiciels actifs</span>
-              <button onClick={()=>{setTmpSw(client.subs);setEditSw(true);}} style={{background:"transparent",border:`1px solid ${C.linen}`,borderRadius:4,padding:"4px 10px",fontFamily:SS,fontSize:10,fontWeight:700,color:C.stone,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.07em"}}>Modifier</button>
-            </div>
-            {client.subs.map((id,i)=>{const sw=software.find(x=>x.id===id);if(!sw)return null;return(<div key={id}><div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0"}}><span>{sw.icon}</span><span style={{fontFamily:SS,fontSize:12,color:C.ink,flex:1}}>{sw.name}</span><span style={{fontFamily:SF,fontWeight:700,fontSize:12,color:C.gold}}>{sw.price}€/mois</span></div>{i<client.subs.length-1&&<HR/>}</div>);})}
-            {!client.subs.length&&<div style={{fontFamily:SS,fontSize:12,color:C.stone}}>Aucun logiciel souscrit.</div>}
-            <HR s={{margin:"10px 0 8px"}}/>
-            <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontFamily:SS,fontSize:10,fontWeight:700,color:C.stone,textTransform:"uppercase"}}>Total</span><span style={{fontFamily:SF,fontWeight:700,fontSize:14,color:C.ink}}>{mrr} €</span></div>
-          </div>
-        </div>
-      )}
-      {tab==="subs"&&(
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
-          {software.map(sw=>{const on=client.subs.includes(sw.id);return(<div key={sw.id} style={{background:on?C.paper:C.dim,border:`1px solid ${on?C.gold+"55":C.linen}`,borderRadius:6,padding:18,opacity:on?1:0.6}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:9}}><span style={{fontSize:20}}>{sw.icon}</span>{on&&<Badge status="active"/>}</div><div style={{fontFamily:SF,fontSize:13,fontWeight:600,color:C.ink,marginBottom:3}}>{sw.name}</div><Stars r={sw.rating} sm/><div style={{fontFamily:SF,fontWeight:700,fontSize:15,color:on?C.gold:C.stone,marginTop:7}}>{sw.price}€/mois</div></div>);})}
-        </div>
-      )}
-      {tab==="invoices"&&(
-        <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,overflow:"hidden"}}>
-          <div style={{display:"grid",gridTemplateColumns:"1.5fr 1fr 1fr 1fr",padding:"9px 18px",background:C.dim,borderBottom:`1px solid ${C.linen}`,gap:12}}>
-            {["N° Facture","Montant","Date","Statut"].map(h=><div key={h} style={{fontFamily:SS,fontSize:9,fontWeight:700,letterSpacing:"0.16em",textTransform:"uppercase",color:C.stone}}>{h}</div>)}
-          </div>
-          {[{id:"INV-2024-091",amount:mrr,date:"01 Déc 2024",status:"paid"},{id:"INV-2024-077",amount:mrr,date:"01 Nov 2024",status:"paid"},{id:"INV-2024-063",amount:mrr,date:"01 Oct 2024",status:"paid"}].map((inv,i)=>(
-            <div key={inv.id}><div style={{display:"grid",gridTemplateColumns:"1.5fr 1fr 1fr 1fr",padding:"12px 18px",gap:12,alignItems:"center"}}><span style={{fontFamily:SS,fontSize:11,color:C.gold,fontWeight:600}}>{inv.id}</span><span style={{fontFamily:SF,fontWeight:700,fontSize:13,color:C.ink}}>{inv.amount} €</span><span style={{fontFamily:SS,fontSize:11,color:C.stone}}>{inv.date}</span><Badge status={inv.status}/></div>{i<2&&<HR s={{margin:"0 18px"}}/>}</div>
-          ))}
-        </div>
-      )}
-      {tab==="referral"&&(
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-          <KPI label="Parrainages" value={client.referrals||0} sub="clients référencés"/>
-          <KPI label="Crédit" value={`${client.referralCredit||0} mois`} accent/>
-          <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,padding:18,gridColumn:"span 2"}}>
-            <div style={{fontFamily:SF,fontSize:13,fontWeight:600,color:C.ink,marginBottom:10}}>Code de parrainage</div>
-            <div style={{background:C.goldDim,border:`1px solid ${C.goldB}`,borderRadius:4,padding:"10px 14px",fontFamily:SS,fontWeight:700,fontSize:15,color:C.gold,letterSpacing:"0.2em"}}>{client.referralCode||"–"}</div>
-          </div>
-        </div>
-      )}
-      {editSw&&(
-        <Overlay title="Modifier les logiciels" onClose={()=>setEditSw(false)} wide>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
-            {software.map(sw=>{const on=tmpSw.includes(sw.id);return(<div key={sw.id} onClick={()=>setTmpSw(p=>on?p.filter(x=>x!==sw.id):[...p,sw.id])} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 13px",background:on?C.goldDim:C.paper,border:`1px solid ${on?C.gold+"66":C.linen}`,borderRadius:6,cursor:"pointer"}}><span>{sw.icon}</span><div style={{flex:1}}><div style={{fontFamily:SS,fontWeight:700,fontSize:12,color:C.ink}}>{sw.name}</div><div style={{fontFamily:SS,fontSize:11,color:C.stone}}>{sw.price}€/mois</div></div><div style={{width:17,height:17,borderRadius:3,background:on?C.gold:C.linen,display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontSize:10,fontWeight:700}}>{on?"✓":""}</div></div>);})}
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:`1px solid ${C.linen}`,paddingTop:13}}>
-            <span style={{fontFamily:SS,fontSize:12,color:C.stone}}>Total : <strong style={{fontFamily:SF,color:C.ink}}>{getMrr(tmpSw)} €/mois</strong></span>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setEditSw(false)} style={{background:"transparent",border:`1px solid ${C.linen}`,borderRadius:4,padding:"8px 16px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.stone,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.1em"}}>Annuler</button>
-              <button onClick={save} style={{background:C.ink,border:"none",borderRadius:4,padding:"8px 16px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.ivory,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.1em"}}>Enregistrer</button>
-            </div>
-          </div>
-        </Overlay>
-      )}
-    </div>
-  );
-};
-
-const AdminSoftware=({software,setSoftware})=>{
-  const [showAdd,setShowAdd]=useState(false);
-  const [form,setForm]=useState({name:"",price:"",cat:"Commerce",desc:"",icon:"🛠️",sector:""});
-  const ICONS=["🏪","📦","📅","💳","🔧","🚗","🏥","✂️","📱","🎓","🍽️","💊","📋","💅"];
-  const add=()=>{if(!form.name||!form.price)return;setSoftware(p=>[...p,{id:Date.now(),name:form.name,price:parseInt(form.price),cat:form.cat,desc:form.desc,icon:form.icon,sector:form.sector,popular:false,rating:0,reviews:0,features:[]}]);setForm({name:"",price:"",cat:"Commerce",desc:"",icon:"🛠️",sector:""});setShowAdd(false);};
-  return (
-    <div>
-      <PH section="Catalogue" title="Logiciels" action={<button onClick={()=>setShowAdd(true)} style={{background:C.ink,border:"none",borderRadius:4,padding:"9px 18px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.ivory,cursor:"pointer",letterSpacing:"0.1em",textTransform:"uppercase"}}>+ Nouveau logiciel</button>}/>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
-        {software.map(s=>(
-          <div key={s.id} style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,padding:20}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:9}}><span style={{fontSize:24}}>{s.icon}</span><button onClick={()=>setSoftware(p=>p.filter(x=>x.id!==s.id))} style={{background:"none",border:"none",color:C.stone,cursor:"pointer",fontSize:13}}>✕</button></div>
-            <div style={{fontFamily:SF,fontSize:13,fontWeight:700,color:C.ink,marginBottom:2}}>{s.name}</div>
-            <div style={{fontFamily:SS,fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:C.stone,marginBottom:5}}>{s.cat}</div>
-            <Stars r={s.rating||0} sm/><div style={{fontFamily:SS,fontSize:11,color:C.stone,marginTop:2,marginBottom:10}}>{s.reviews||0} avis</div>
-            <HR s={{marginBottom:9}}/>
-            <div style={{fontFamily:SF,fontWeight:700,fontSize:16,color:C.gold}}>{s.price}€<span style={{fontSize:11,fontWeight:400,color:C.stone}}>/mois</span></div>
-          </div>
-        ))}
-        <div onClick={()=>setShowAdd(true)} style={{background:"transparent",border:`1.5px dashed ${C.linen}`,borderRadius:6,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:9,cursor:"pointer",minHeight:160}} onMouseEnter={e=>e.currentTarget.style.borderColor=C.gold} onMouseLeave={e=>e.currentTarget.style.borderColor=C.linen}>
-          <div style={{width:38,height:38,borderRadius:4,background:C.goldDim,border:`1px solid ${C.goldB}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,color:C.gold}}>+</div>
-          <span style={{fontFamily:SS,fontSize:11,fontWeight:700,color:C.stone,letterSpacing:"0.1em",textTransform:"uppercase"}}>Ajouter</span>
-        </div>
-      </div>
-      {showAdd&&(
-        <Overlay title="Nouveau logiciel" onClose={()=>setShowAdd(false)} wide>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-            <TI label="Nom" value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))}/>
-            <TI label="Prix / mois (€)" value={form.price} onChange={e=>setForm(p=>({...p,price:e.target.value}))} type="number"/>
-          </div>
-          <TI label="Description" value={form.desc} onChange={e=>setForm(p=>({...p,desc:e.target.value}))}/>
-          <div style={{marginBottom:14}}>
-            <FL label="Icône"/>
-            <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-              {ICONS.map(ic=><button key={ic} onClick={()=>setForm(p=>({...p,icon:ic}))} style={{width:36,height:36,borderRadius:6,background:form.icon===ic?C.goldDim:C.paper,border:`1px solid ${form.icon===ic?C.gold:C.linen}`,fontSize:17,cursor:"pointer"}}>{ic}</button>)}
-            </div>
-          </div>
-          <div style={{display:"flex",gap:10}}>
-            <button onClick={()=>setShowAdd(false)} style={{flex:1,background:"transparent",border:`1px solid ${C.linen}`,borderRadius:4,padding:"9px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.stone,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.1em"}}>Annuler</button>
-            <button onClick={add} style={{flex:2,background:C.ink,border:"none",borderRadius:4,padding:"9px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.ivory,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.1em"}}>Créer</button>
-          </div>
-        </Overlay>
-      )}
-    </div>
-  );
-};
-
-const AdminDevis=({devis,setDevis})=>{
+const AdminDevis=()=>{
+  const [devis,setDevis]=useState([]);
   const [sel,setSel]=useState(null);
   const [amount,setAmount]=useState("");
-  const upd=(id,status,amt)=>setDevis(p=>p.map(d=>d.id===id?{...d,status,amount:amt?parseFloat(amt):d.amount}:d));
+  const [loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    supabase.from("devis").select("*").order("created_at",{ascending:false}).then(({data})=>{setDevis(data||[]);setLoading(false);});
+  },[]);
+
+  const send=async()=>{
+    await supabase.from("devis").update({status:"quoted",amount:parseFloat(amount)}).eq("id",sel.id);
+    setDevis(p=>p.map(d=>d.id===sel.id?{...d,status:"quoted",amount:parseFloat(amount)}:d));
+    setSel(null);
+  };
+
   return (
     <div>
       <PH section="Commercial" title="Demandes de devis"/>
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}}>
         <KPI label="En attente" value={devis.filter(d=>d.status==="pending").length} accent/>
-        <KPI label="Devis envoyés" value={devis.filter(d=>d.status==="quoted").length}/>
+        <KPI label="Envoyés" value={devis.filter(d=>d.status==="quoted").length}/>
         <KPI label="Convertis" value={devis.filter(d=>d.status==="done").length}/>
       </div>
+      {loading&&<div style={{padding:"40px",textAlign:"center",fontFamily:SS,color:C.stone}}>Chargement…</div>}
       <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,overflow:"hidden"}}>
-        <div style={{display:"grid",gridTemplateColumns:"1.5fr 2.5fr 1fr 1fr 1fr",padding:"9px 18px",background:C.dim,borderBottom:`1px solid ${C.linen}`,gap:12}}>
-          {["Client","Description","Montant","Date","Statut"].map(h=><div key={h} style={{fontFamily:SS,fontSize:9,fontWeight:700,letterSpacing:"0.16em",textTransform:"uppercase",color:C.stone}}>{h}</div>)}
-        </div>
+        {!loading&&devis.length===0&&<div style={{padding:"30px",textAlign:"center",fontFamily:SS,color:C.stone}}>Aucune demande de devis.</div>}
         {devis.map((d,i)=>(
-          <div key={d.id}><div onClick={()=>{setSel(d);setAmount(d.amount||"");}} style={{display:"grid",gridTemplateColumns:"1.5fr 2.5fr 1fr 1fr 1fr",padding:"13px 18px",gap:12,cursor:"pointer",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background=C.dim} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-            <div><div style={{fontFamily:SS,fontWeight:700,fontSize:12,color:C.ink}}>{d.client}</div><div style={{fontFamily:SS,fontSize:11,color:C.stone}}>{d.email}</div></div>
-            <div style={{fontFamily:SS,fontSize:11,color:C.stone}}>{d.desc.slice(0,55)}…</div>
-            <div style={{fontFamily:SF,fontWeight:700,fontSize:12,color:d.amount?C.gold:C.stone}}>{d.amount?`${d.amount}€/mois`:"–"}</div>
-            <div style={{fontFamily:SS,fontSize:11,color:C.stone}}>{d.date}</div>
-            <Badge status={d.status}/>
+          <div key={d.id}><div onClick={()=>{setSel(d);setAmount(d.amount||"");}} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 18px",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=C.dim} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <div style={{flex:1}}><div style={{fontFamily:SS,fontWeight:700,fontSize:13,color:C.ink}}>{d.client_name}</div><div style={{fontFamily:SS,fontSize:11,color:C.stone,marginTop:2}}>{d.description?.slice(0,60)}…</div></div>
+            <div style={{textAlign:"right"}}><Badge status={d.status}/><div style={{fontFamily:SS,fontSize:10,color:C.stone,marginTop:4}}>{new Date(d.created_at).toLocaleDateString("fr-FR")}</div></div>
           </div>{i<devis.length-1&&<HR s={{margin:"0 18px"}}/>}</div>
         ))}
       </div>
       {sel&&(
         <Overlay title="Demande de devis" onClose={()=>setSel(null)} wide>
           <div style={{background:C.dim,border:`1px solid ${C.linen}`,borderRadius:6,padding:14,marginBottom:16}}>
-            <div style={{fontFamily:SS,fontWeight:700,fontSize:13,color:C.ink}}>{sel.client}</div>
-            <div style={{fontFamily:SS,fontSize:11,color:C.stone,marginBottom:5}}>{sel.email} — {sel.date}</div>
-            <div style={{fontFamily:SS,fontSize:13,color:C.ink,lineHeight:1.6}}>{sel.desc}</div>
+            <div style={{fontFamily:SS,fontWeight:700,fontSize:13,color:C.ink}}>{sel.client_name} — {sel.client_email}</div>
+            <div style={{fontFamily:SS,fontSize:13,color:C.ink,lineHeight:1.6,marginTop:8}}>{sel.description}</div>
+            {sel.budget&&<div style={{fontFamily:SS,fontSize:11,color:C.stone,marginTop:6}}>Budget : {sel.budget}</div>}
           </div>
           <TI label="Tarif mensuel proposé (€)" value={amount} onChange={e=>setAmount(e.target.value)} type="number" placeholder="ex: 49"/>
           <div style={{display:"flex",gap:10}}>
             <button onClick={()=>setSel(null)} style={{flex:1,background:"transparent",border:`1px solid ${C.linen}`,borderRadius:4,padding:"9px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.stone,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.1em"}}>Fermer</button>
-            <button onClick={()=>{upd(sel.id,"quoted",amount);setSel(null);}} style={{flex:2,background:C.gold,border:"none",borderRadius:4,padding:"9px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.ink,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.1em"}}>Envoyer le devis</button>
+            <button onClick={send} style={{flex:2,background:C.gold,border:"none",borderRadius:4,padding:"9px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.ink,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.1em"}}>Envoyer le devis</button>
           </div>
         </Overlay>
       )}
@@ -1072,148 +785,68 @@ const AdminDevis=({devis,setDevis})=>{
   );
 };
 
-const AdminFactures=({users,software})=>{
-  const clients=users.filter(u=>u.role==="client");
-  const rows=clients.map(c=>({...c,mrr:getMrr(c.subs),inv:`INV-2024-${String(80+c.id).padStart(3,"0")}`,date:"01 Déc 2024",ps:c.status==="overdue"?"overdue":c.status==="trial"?"pending":"paid"}));
-  const paid=rows.filter(r=>r.ps==="paid").reduce((s,r)=>s+r.mrr,0);
-  const pend=rows.filter(r=>r.ps!=="paid").reduce((s,r)=>s+r.mrr,0);
-  return (
-    <div>
-      <PH section="Finance" title="Factures"/>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:20}}>
-        <KPI label="Encaissé" value={`${paid} €`} accent/><KPI label="En attente" value={`${pend} €`}/><KPI label="Total" value={rows.length}/>
-      </div>
-      <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,overflow:"hidden"}}>
-        <div style={{display:"grid",gridTemplateColumns:"1.2fr 2fr 1.5fr 1fr 1fr 1fr",padding:"9px 18px",background:C.dim,borderBottom:`1px solid ${C.linen}`,gap:12}}>
-          {["N° Facture","Client","Logiciels","Montant","Date","Statut"].map(h=><div key={h} style={{fontFamily:SS,fontSize:9,fontWeight:700,letterSpacing:"0.16em",textTransform:"uppercase",color:C.stone}}>{h}</div>)}
-        </div>
-        {rows.map((r,i)=>(
-          <div key={r.id}><div style={{display:"grid",gridTemplateColumns:"1.2fr 2fr 1.5fr 1fr 1fr 1fr",padding:"12px 18px",gap:12,alignItems:"center"}}>
-            <span style={{fontFamily:SS,fontSize:11,color:C.gold,fontWeight:600}}>{r.inv}</span>
-            <div style={{display:"flex",alignItems:"center",gap:8}}><Mono i={r.avatar} size={22}/><span style={{fontFamily:SS,fontSize:11,fontWeight:600,color:C.ink}}>{r.company}</span></div>
-            <span style={{fontFamily:SS,fontSize:11,color:C.stone}}>{r.subs.length} logiciel{r.subs.length>1?"s":""}</span>
-            <span style={{fontFamily:SF,fontWeight:700,fontSize:12,color:C.ink}}>{r.mrr} €</span>
-            <span style={{fontFamily:SS,fontSize:11,color:C.stone}}>{r.date}</span>
-            <Badge status={r.ps}/>
-          </div>{i<rows.length-1&&<HR s={{margin:"0 18px"}}/>}</div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const AdminReferrals=({users})=>{
-  const clients=users.filter(u=>u.role==="client");
-  const total=clients.reduce((s,c)=>s+(c.referrals||0),0);
-  const topRef=clients.filter(c=>c.referrals>0).sort((a,b)=>b.referrals-a.referrals);
-  return (
-    <div>
-      <PH section="Croissance" title="Programme de parrainage"/>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:20}}>
-        <KPI label="Parrainages total" value={total} sub="clients référencés" trend/>
-        <KPI label="Crédits distribués" value={`${clients.reduce((s,c)=>s+(c.referralCredit||0),0)} mois`} accent/>
-        <KPI label="Taux participation" value={`${Math.round((clients.filter(c=>c.referrals>0).length/Math.max(1,clients.length))*100)}%`} sub="clients actifs"/>
-      </div>
-      <div style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,overflow:"hidden"}}>
-        <div style={{padding:"13px 18px",borderBottom:`1px solid ${C.linen}`}}><span style={{fontFamily:SF,fontSize:13,fontWeight:600,color:C.ink}}>Top parrains</span></div>
-        {topRef.length===0&&<div style={{padding:"20px",fontFamily:SS,fontSize:12,color:C.stone}}>Aucun parrainage encore.</div>}
-        {topRef.map((c,i)=>(
-          <div key={c.id}><div style={{display:"flex",alignItems:"center",gap:14,padding:"12px 18px"}}>
-            <Mono i={c.avatar} size={28}/>
-            <div style={{flex:1}}><div style={{fontFamily:SS,fontWeight:600,fontSize:13,color:C.ink}}>{c.company}</div><div style={{fontFamily:SS,fontSize:11,color:C.stone}}>Code : {c.referralCode}</div></div>
-            <div style={{textAlign:"right"}}><div style={{fontFamily:SF,fontWeight:700,fontSize:15,color:C.gold}}>{c.referrals} parrainage{c.referrals>1?"s":""}</div><div style={{fontFamily:SS,fontSize:11,color:C.stone}}>{c.referralCredit||0} mois de crédit</div></div>
-          </div>{i<topRef.length-1&&<HR s={{margin:"0 18px"}}/>}</div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// ── Nav config ─────────────────────────────────────────────────────────────
-const PUBLIC_NAV=[
-  {id:"c-market",     label:"Marketplace",     g:"◈"},
-  {id:"pub-secteurs", label:"Par secteur",      g:"◉"},
-  {id:"pub-apropos",  label:"À propos",         g:"◎"},
-];
-const CLIENT_EXTRA=[
-  {id:"c-espace",     label:"Mon espace",       g:"◧"},
-  {id:"c-parrainage", label:"Parrainage",        g:"◆"},
-  {id:"c-devis",      label:"Devis sur mesure",  g:"◫"},
-];
-const ADMIN_NAV=[
-  {id:"a-dashboard",  label:"Dashboard",        g:"◈"},
-  {id:"a-clients",    label:"Clients",          g:"◉"},
-  {id:"a-software",   label:"Logiciels",        g:"◧"},
-  {id:"a-devis",      label:"Devis",            g:"◎"},
-  {id:"a-factures",   label:"Factures",         g:"◫"},
-  {id:"a-referrals",  label:"Parrainage",       g:"◆"},
-];
-const LOCKED=[
-  {id:"c-espace",    label:"Mon espace",        g:"◧",desc:"Gérez vos abonnements et factures"},
-  {id:"c-parrainage",label:"Parrainage",         g:"◆",desc:"Gagnez des mois offerts"},
-  {id:"c-devis",     label:"Devis sur mesure",   g:"◫",desc:"Logiciel développé pour vous"},
-];
+// ── Nav ────────────────────────────────────────────────────────────────────
+const PUBLIC_NAV=[{id:"c-market",label:"Marketplace",g:"◈"},{id:"pub-secteurs",label:"Par secteur",g:"◉"},{id:"pub-apropos",label:"À propos",g:"◎"}];
+const CLIENT_EXTRA=[{id:"c-espace",label:"Mon espace",g:"◧"},{id:"c-parrainage",label:"Parrainage",g:"◆"},{id:"c-devis",label:"Devis sur mesure",g:"◫"}];
+const ADMIN_NAV=[{id:"a-dashboard",label:"Dashboard",g:"◈"},{id:"a-clients",label:"Clients",g:"◉"},{id:"a-devis",label:"Devis",g:"◎"},{id:"a-software",label:"Logiciels",g:"◧"}];
+const LOCKED=[{id:"c-espace",label:"Mon espace",g:"◧"},{id:"c-parrainage",label:"Parrainage",g:"◆"},{id:"c-devis",label:"Devis sur mesure",g:"◫"}];
 
 // ── App ────────────────────────────────────────────────────────────────────
 export default function App() {
   const [view,setView]=useState("c-market");
   const [user,setUser]=useState(null);
-  const [users,setUsers]=useState(USERS_DB);
-  const [software,setSoftware]=useState(SW_DB);
-  const [devis,setDevis]=useState(DEVIS_DB);
+  const [software,setSoftware]=useState([]);
   const [selClient,setSelClient]=useState(null);
-  const [showOnboard,setShowOnboard]=useState(false);
   const [showAuth,setShowAuth]=useState(false);
   const [authMode,setAuthMode]=useState("login");
   const [selSector,setSelSector]=useState("");
+  const [loading,setLoading]=useState(true);
+
+  // Check session on load
+  useEffect(()=>{
+    supabase.auth.getSession().then(async({data:{session}})=>{
+      if(session?.user){
+        const {data:profile}=await supabase.from("profiles").select("*").eq("id",session.user.id).single();
+        if(profile)setUser({...session.user,...profile});
+      }
+      setLoading(false);
+    });
+    supabase.auth.onAuthStateChange(async(event,session)=>{
+      if(session?.user){
+        const {data:profile}=await supabase.from("profiles").select("*").eq("id",session.user.id).single();
+        if(profile)setUser({...session.user,...profile});
+      } else {setUser(null);}
+    });
+    // Load software
+    supabase.from("software").select("*").then(({data})=>setSoftware(data||[]));
+  },[]);
 
   const openAuth=(mode)=>{setAuthMode(mode);setShowAuth(true);};
-
-  const login=(u,isNew)=>{
-    setUser(u);
-    setUsers(p=>{const ex=p.find(x=>x.id===u.id);return ex?p.map(x=>x.id===u.id?u:x):[...p,u];});
-    setView(u.role==="admin"?"a-dashboard":"c-market");
-    setShowAuth(false);
-    if(isNew)setShowOnboard(true);
-  };
-
-  const logout=()=>{setUser(null);setView("c-market");};
-
-  const setUserSync=updater=>{
-    setUser(prev=>{
-      const next=typeof updater==="function"?updater(prev):updater;
-      setUsers(us=>us.map(u=>u.id===next.id?next:u));
-      return next;
-    });
-  };
-
-  const onboardDone=(picks)=>{
-    setShowOnboard(false);
-    if(picks.length>0){
-      const now=Date.now();
-      setUserSync(u=>({...u,trials:{...u.trials,...picks.reduce((a,id)=>({...a,[id]:now}),{})}}));
-    }
-  };
+  const login=(u)=>{setUser(u);setView(u.role==="admin"?"a-dashboard":"c-market");setShowAuth(false);};
+  const logout=async()=>{await supabase.auth.signOut();setUser(null);setView("c-market");};
 
   const isAdmin=user?.role==="admin";
   const activeNav=view==="a-client-detail"?"a-clients":view;
   const NAV=isAdmin?ADMIN_NAV:[...PUBLIC_NAV,...(user?CLIENT_EXTRA:[])];
 
+  if(loading)return(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:C.deep,flexDirection:"column",gap:16}}>
+      <div style={{fontFamily:SF,fontSize:28,fontWeight:700,color:C.ivory,letterSpacing:6}}>ONIQ</div>
+      <div style={{height:2,width:60,background:`linear-gradient(90deg,transparent,${C.gold},transparent)`,animation:"pulse 1.5s infinite"}}/>
+    </div>
+  );
+
   return (
     <div style={{fontFamily:SS,background:C.dim,minHeight:"100vh",display:"flex"}}>
-      
-
-      {showOnboard&&<Onboarding user={user} onDone={onboardDone}/>}
       {showAuth&&<AuthModal onLogin={login} initMode={authMode} onClose={()=>setShowAuth(false)}/>}
 
       {/* Sidebar */}
-      <div style={{width:216,background:C.deep,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:10,flexShrink:0}}>
+      <div style={{width:216,background:C.deep,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:10}}>
         <div style={{padding:"22px 18px 14px",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
           <div style={{fontFamily:SF,fontSize:20,fontWeight:700,color:C.ivory,letterSpacing:5,marginBottom:4}}>ONIQ</div>
           <div style={{height:1,background:`linear-gradient(90deg,${C.gold}88,transparent)`,marginBottom:5}}/>
           <div style={{fontFamily:SS,fontSize:8,letterSpacing:"0.22em",textTransform:"uppercase",color:"rgba(255,255,255,0.18)"}}>{isAdmin?"Admin":user?"Espace Client":"Marketplace"}</div>
         </div>
-
         <nav style={{flex:1,padding:"10px 8px",display:"flex",flexDirection:"column",gap:2,overflowY:"auto"}}>
           {NAV.map(item=>(
             <button key={item.id} onClick={()=>setView(item.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 13px",borderRadius:4,background:activeNav===item.id?`${C.gold}1A`:"transparent",border:`1px solid ${activeNav===item.id?C.gold+"44":"transparent"}`,color:activeNav===item.id?C.gold:"rgba(255,255,255,0.33)",cursor:"pointer",fontFamily:SS,fontSize:12,fontWeight:activeNav===item.id?600:400,textAlign:"left",transition:"all 0.15s",width:"100%"}}
@@ -1221,7 +854,6 @@ export default function App() {
               onMouseLeave={e=>{if(activeNav!==item.id){e.currentTarget.style.color="rgba(255,255,255,0.33)";e.currentTarget.style.background="transparent";}}}
             ><span style={{fontSize:11,opacity:0.5}}>{item.g}</span>{item.label}</button>
           ))}
-
           {!user&&(
             <>
               <div style={{height:1,background:"rgba(255,255,255,0.05)",margin:"8px 6px"}}/>
@@ -1235,13 +867,12 @@ export default function App() {
             </>
           )}
         </nav>
-
         <div style={{padding:"11px 14px",borderTop:"1px solid rgba(255,255,255,0.05)"}}>
           {user?(
             <>
               <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:9}}>
-                <div style={{width:26,height:26,borderRadius:4,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:C.ink,fontFamily:SF,flexShrink:0}}>{user.avatar}</div>
-                <div style={{overflow:"hidden"}}><div style={{fontFamily:SS,fontSize:11,fontWeight:600,color:C.ivory,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.company}</div><div style={{fontFamily:SS,fontSize:8,letterSpacing:"0.1em",color:"rgba(255,255,255,0.22)",textTransform:"uppercase"}}>{isAdmin?"Admin":"Client"}</div></div>
+                <div style={{width:26,height:26,borderRadius:4,background:C.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:C.ink,fontFamily:SF,flexShrink:0}}>{(user.company||user.name||"?").slice(0,2).toUpperCase()}</div>
+                <div style={{overflow:"hidden"}}><div style={{fontFamily:SS,fontSize:11,fontWeight:600,color:C.ivory,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.company||user.name}</div><div style={{fontFamily:SS,fontSize:8,letterSpacing:"0.1em",color:"rgba(255,255,255,0.22)",textTransform:"uppercase"}}>{isAdmin?"Admin":"Client"}</div></div>
               </div>
               <button onClick={logout} style={{width:"100%",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:4,padding:"7px",fontFamily:SS,fontSize:10,fontWeight:600,color:"rgba(255,255,255,0.28)",cursor:"pointer",letterSpacing:"0.08em",textTransform:"uppercase"}}>Déconnexion</button>
             </>
@@ -1257,25 +888,68 @@ export default function App() {
       {/* Main */}
       <div style={{marginLeft:216,flex:1,overflowY:"auto",minHeight:"100vh"}}>
         {isAdmin&&(
-          <div style={{padding:"32px 36px"}}>
-            <div style={{maxWidth:1040,margin:"0 auto"}}>
-              {view==="a-dashboard"&&<AdminDash users={users} software={software} devis={devis} setView={setView}/>}
-              {view==="a-clients"&&<AdminClients users={users} setUsers={setUsers} software={software} setView={setView} setSelClient={setSelClient}/>}
-              {view==="a-client-detail"&&<AdminClientDetail client={selClient} setClient={setSelClient} users={users} setUsers={setUsers} software={software} setView={setView}/>}
-              {view==="a-software"&&<AdminSoftware software={software} setSoftware={setSoftware}/>}
-              {view==="a-devis"&&<AdminDevis devis={devis} setDevis={setDevis}/>}
-              {view==="a-factures"&&<AdminFactures users={users} software={software}/>}
-              {view==="a-referrals"&&<AdminReferrals users={users}/>}
-            </div>
+          <div style={{padding:"32px 36px",maxWidth:1040,margin:"0 auto"}}>
+            {view==="a-dashboard"&&<AdminDash setView={setView}/>}
+            {view==="a-clients"&&<AdminClients setView={setView} setSelClient={setSelClient}/>}
+            {view==="a-client-detail"&&selClient&&(
+              <div>
+                <button onClick={()=>setView("a-clients")} style={{background:"none",border:"none",color:C.stone,cursor:"pointer",fontFamily:SS,fontSize:10,letterSpacing:"0.14em",textTransform:"uppercase",marginBottom:14,padding:0}}>← Retour</button>
+                <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:24,paddingBottom:18,borderBottom:`1px solid ${C.linen}`}}>
+                  <Mono i={(selClient.company||selClient.name||"?").slice(0,2).toUpperCase()} size={44}/>
+                  <div><h1 style={{margin:0,fontFamily:SF,fontSize:22,fontWeight:700,color:C.ink}}>{selClient.company||selClient.name}</h1><div style={{fontFamily:SS,fontSize:11,color:C.stone,marginTop:3}}>{selClient.email} · {selClient.sector||"–"}</div></div>
+                  <div style={{marginLeft:"auto"}}><Badge status={selClient.status||"active"}/></div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+                  <KPI label="Secteur" value={selClient.sector||"–"}/>
+                  <KPI label="Parrainages" value={selClient.referrals||0}/>
+                  <KPI label="Code parrainage" value={selClient.referral_code||"–"}/>
+                </div>
+              </div>
+            )}
+            {view==="a-devis"&&<AdminDevis/>}
+            {view==="a-software"&&(
+              <div>
+                <PH section="Catalogue" title="Logiciels"/>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+                  {software.map(s=>(
+                    <div key={s.id} style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:6,padding:20}}>
+                      <div style={{fontSize:24,marginBottom:8}}>{s.icon}</div>
+                      <div style={{fontFamily:SF,fontSize:13,fontWeight:700,color:C.ink,marginBottom:2}}>{s.name}</div>
+                      <Stars r={s.rating||0} sm/><div style={{fontFamily:SS,fontSize:11,color:C.stone,marginTop:2,marginBottom:8}}>{s.reviews} avis</div>
+                      <div style={{fontFamily:SF,fontWeight:700,fontSize:16,color:C.gold}}>{s.price}€<span style={{fontSize:11,fontWeight:400,color:C.stone}}>/mois</span></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
         {!isAdmin&&(
           <>
-            {view==="c-market"&&<Marketplace user={user} setUser={setUserSync} software={software} setView={setView} onAuth={openAuth}/>}
+            {view==="c-market"&&<Marketplace user={user} setUser={setUser} software={software} setView={setView} onAuth={openAuth}/>}
             {view==="pub-secteurs"&&<Secteurs onSector={s=>{setSelSector(s);setView("pub-sector-detail");}} onAuth={openAuth}/>}
-            {view==="pub-sector-detail"&&<SectorDetail sector={selSector} onBack={()=>setView("pub-secteurs")} onAuth={openAuth} user={user}/>}
+            {view==="pub-sector-detail"&&(
+              <div style={{padding:"28px 36px"}}>
+                <button onClick={()=>setView("pub-secteurs")} style={{background:"none",border:"none",color:C.stone,cursor:"pointer",fontFamily:SS,fontSize:10,letterSpacing:"0.14em",textTransform:"uppercase",marginBottom:18,padding:0}}>← Retour</button>
+                <div style={{background:`linear-gradient(135deg,${C.ink},#1c1409)`,borderRadius:10,padding:"32px 36px",marginBottom:22,textAlign:"center"}}>
+                  <div style={{fontFamily:SF,fontSize:26,fontWeight:700,color:C.ivory,marginBottom:8}}>Logiciel {selSector}</div>
+                  <div style={{fontFamily:SS,fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:20}}>Essai 7 jours gratuit · Sans carte bancaire</div>
+                  <button onClick={()=>openAuth("register")} style={{background:C.gold,border:"none",borderRadius:6,padding:"11px 26px",fontFamily:SS,fontSize:11,fontWeight:800,letterSpacing:"0.12em",textTransform:"uppercase",color:C.ink,cursor:"pointer"}}>Commencer gratuitement</button>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16}}>
+                  {software.filter(sw=>sw.sector?.includes(selSector)).map(sw=>(
+                    <div key={sw.id} style={{background:C.paper,border:`1px solid ${C.linen}`,borderRadius:8,padding:20}}>
+                      <div style={{fontSize:24,marginBottom:8}}>{sw.icon}</div>
+                      <div style={{fontFamily:SF,fontSize:14,fontWeight:700,color:C.ink,marginBottom:3}}>{sw.name}</div>
+                      <Stars r={sw.rating} sm/>
+                      <div style={{fontFamily:SF,fontWeight:700,fontSize:17,color:C.gold,marginTop:8}}>{sw.price}€<span style={{fontSize:11,fontWeight:400,color:C.stone}}>/mois</span></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {view==="pub-apropos"&&<Apropos onAuth={openAuth}/>}
-            {view==="c-espace"&&user&&<MonEspace user={user} setUser={setUserSync} software={software}/>}
+            {view==="c-espace"&&user&&<MonEspace user={user} software={software}/>}
             {view==="c-parrainage"&&user&&<Parrainage user={user}/>}
             {view==="c-devis"&&user&&<DevisClient user={user}/>}
             {(view==="c-espace"||view==="c-parrainage"||view==="c-devis")&&!user&&(
@@ -1283,11 +957,7 @@ export default function App() {
                 <div style={{maxWidth:380,margin:"0 auto"}}>
                   <div style={{fontSize:38,marginBottom:14}}>🔒</div>
                   <div style={{fontFamily:SF,fontSize:22,fontWeight:700,color:C.ink,marginBottom:7}}>Fonctionnalité pro</div>
-                  <div style={{fontFamily:SS,fontSize:13,color:C.stone,marginBottom:26,lineHeight:1.7}}>
-                    {view==="c-espace"&&"Gérez vos abonnements, essais et factures."}
-                    {view==="c-parrainage"&&"Parrainez des confrères, gagnez des mois offerts."}
-                    {view==="c-devis"&&"Décrivez votre besoin, on développe votre logiciel en 48h."}
-                  </div>
+                  <div style={{fontFamily:SS,fontSize:13,color:C.stone,marginBottom:26,lineHeight:1.7}}>Connectez-vous pour accéder à cette section.</div>
                   <div style={{display:"flex",gap:10,justifyContent:"center"}}>
                     <button onClick={()=>openAuth("login")} style={{background:"transparent",border:`1px solid ${C.linen}`,borderRadius:4,padding:"9px 18px",fontFamily:SS,fontSize:11,fontWeight:700,color:C.stone,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.1em"}}>Se connecter</button>
                     <button onClick={()=>openAuth("register")} style={{background:C.gold,border:"none",borderRadius:4,padding:"9px 18px",fontFamily:SS,fontSize:11,fontWeight:800,color:C.ink,cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.1em"}}>Créer un compte gratuit</button>
