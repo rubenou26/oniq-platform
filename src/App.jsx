@@ -818,7 +818,19 @@ export default function App() {
       } else {setUser(null);}
     });
     // Load software
-    supabase.from("software").select("*").then(({data})=>setSoftware(data||[]));
+    supabase.from("software").select("*").then(({data})=>{
+      if(data&&data.length>0){setSoftware(data);}
+      else{
+        // BatiManager — logiciel de gestion financière pour entreprises de construction
+        setSoftware([{
+          id:1,name:"BatiManager",cat:"Construction & BTP",icon:"🏗️",
+          price:169,rating:4.9,reviews:47,popular:true,
+          description:"Logiciel de gestion financière complet pour entreprises de construction. Suivez vos chantiers, budgets, factures et trésorerie en temps réel.",
+          features:["Suivi des chantiers et avancement","Grand Livre comptable","Balance budgétaire prévisionnelle","Gestion des factures fournisseurs","Tableau de bord trésorerie","Récapitulatif financier annuel","Gestion des fournisseurs","Prévisionnel multi-chantiers"],
+          sector:["Construction","Artisanat","BTP"]
+        }]);
+      }
+    });
   },[]);
 
   const openAuth=(mode)=>{setAuthMode(mode);setShowAuth(true);};
