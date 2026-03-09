@@ -252,10 +252,19 @@ const Marketplace=({user,setUser,software,setView,onAuth})=>{
   const cartTotal=cartItems.reduce((s,x)=>s+x.price,0);
 
   const pay=async()=>{
+    let ok=true;
     for(const id of cart){
-      await supabase.from("subscriptions").upsert({user_id:user.id,software_id:id,status:"active"},{onConflict:"user_id,software_id"});
+      const {error}=await supabase.from("subscriptions").upsert({user_id:user.id,software_id:id,status:"active"},{onConflict:"user_id,software_id"});
+      if(error){ok=false;console.error("Sub error:",error);}
     }
-    setUserSubs(p=>[...new Set([...p,...cart])]);
+    if(!ok){setToast("❌ Erreur activation, réessayez");setTimeout(()=>setToast(null),5000);return;}
+    const {data}=await supabase.from("subscriptions").select("software_id,status,trial_started_at").eq("user_id",user.id);
+    if(data){
+      setUserSubs(data.filter(s=>s.status==="active").map(s=>s.software_id));
+      const trials={};
+      data.filter(s=>s.status==="trial").forEach(s=>{trials[s.software_id]=s.trial_started_at;});
+      setUserTrials(trials);
+    }
     setCart([]);setShowPay(false);
     setToast("🎉 Abonnements activés !");setTimeout(()=>setToast(null),4000);
   };
